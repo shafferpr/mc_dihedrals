@@ -8,14 +8,15 @@ int gridx=200;
 int gridy=200;
 int N_cvs=0;
 double step_size=0.1;
-double beta=5;
+double beta=0.401606;
 double energy=0;
 int Nsteps=1000;
-int Nsweeps=10000;
+int Nsweeps=30000;
 vector <Two_d_grid> bias_grid;
 
 void initialize(string);
 void run_mc();
+void print(int, vector<double> &);
 
 int main(int argc, char *argv[]){
   string biasfilename;
@@ -40,46 +41,68 @@ void run_mc(){
   uniform_real_distribution<double> real_distribution(0.0,1.0);
   uniform_int_distribution<int> distribution(0,N_cvs-1);
   int dihedral_label=0;
+  double xmax=3.141592654;
+  double xmin=-3.14159264;
   for(int i=0; i<=Nsweeps; i++){
     for(int j=0; j<=Nsteps; j++){
       dihedral_label = distribution(generator);
-      pos_temp = positions[dihedral_label] + real_distribution(generator)*step_size;
+      pos_temp = positions[dihedral_label] + (real_distribution(generator)-0.5)*step_size;
+      //pos_temp=3.14159;
+      //cout << pos_temp << "\n";
+      if(pos_temp>xmax-0.01){
+	pos_temp=xmin+(pos_temp-xmax);
+      }
+      else if(pos_temp<xmin){
+	pos_temp=xmax-(xmin-pos_temp)-0.001;
+      }
+      //cout << j << "\n";
       if(dihedral_label>0 && dihedral_label< N_cvs-1){
 	energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[dihedral_label],positions[dihedral_label+1]);
 	energy_delta = bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[dihedral_label-1],positions[dihedral_label]);
+	//cout << energy_delta << " in between  " << "\n";
       }
-      else if(dihedral_label=0){	
+      else if(dihedral_label==0){	
 	energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[dihedral_label],positions[dihedral_label+1]);
+	//cout << energy_delta <<" "<<bias_grid[dihedral_label].getvalue_linearinterpolation(positions[dihedral_label],positions[dihedral_label+1]) << " 0  " << "\n";
       }
       else{
 	energy_delta = bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[dihedral_label-1],positions[dihedral_label]);
-	if(energy_delta<0 || real_distribution(generator)<=exp(-beta*energy_delta)){
-	  energy += energy_delta;
-	  positions[dihedral_label]=pos_temp;
-	}
-	else{
-	  pos_temp=pos_temp;
-	}
+	//cout << energy_delta <<" ncv " << "\n";
+      }
+      if(energy_delta<0 || real_distribution(generator)<=exp(-beta*energy_delta)){
+	energy += energy_delta;
+	positions[dihedral_label]=pos_temp;
+	//cout << energy_delta <<" accepted " << "\n";
+      }
+      else{
+	//cout << "rejected\n";
+	pos_temp=pos_temp;
       }
     }
+    print(i, positions);
   }
 
 }
 
 
 void initialize(string biasfname){
-  cout << "hello\n";
   Two_d_grid gridtemplate(gridx, gridy);
 //Nbiases is the number of 2d_grids you want to make, gridx, and gridy are the number of gridpoints you are using
-  cout << "hello\n";
   for(int i=0; i<Nbiases; i++){
-    cout << i << "a\n";
     bias_grid.push_back(gridtemplate);
-    cout << i << "b\n";
     bias_grid[i].readfiles(i,biasfname);
-    cout << i << "c\n";
     bias_grid[i].setindices();
-    cout << i << "d\n";
   }
 
+}
+
+void print(int counter, vector<double> & allpositions){
+  ofstream colvarfile;
+  colvarfile.open("colvar.data", ios_base::app);
+  for(int i=0; i<N_cvs; i++){
+    colvarfile << allpositions[i];
+    colvarfile << " ";
+  }
+  colvarfile << "\n";
+  colvarfile.close();
 }
