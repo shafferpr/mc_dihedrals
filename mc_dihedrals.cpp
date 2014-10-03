@@ -10,6 +10,7 @@ int N_cvs=0;
 double step_size=0.1;
 double beta=0.401606;
 double energy=0;
+int Nbackbone=0;
 int Nsteps=1000;
 int Nsweeps=30000;
 vector <Two_d_grid> bias_grid;
@@ -84,6 +85,36 @@ void run_mc(){
 
 }
 
+void backbone(vector<double> & allpositions){
+  vector< vector <double> > backbone;
+  vector< double > bond_distances(Nbackbone);
+  vector< double > bond_angles(Nbackbone);
+  vector< double > dihedral_angles(Nbackbone);
+  backbone.resize(Nbackbone);
+  for(int i=0; i<Nbackbone; i++){
+    backbone[i].resize(3);
+  }
+  backbone[0][0]=0;backbone[0][1]=0;backbone[0][2]=0;
+  bond_distances[0]=0.133386;
+  for(int i=0; i<=N_cvs/2; i++){
+    bond_distance[1+3*i]=0.147101;
+    bond_distance[2+3*i]=0.1546;
+    bond_distance[3+3*i]=0.133649;
+  }
+  bond_angles[0]=2.1957;
+  for(int i=0; i<=N_cvs/2; i++){
+    bond_angles[1+3*i]=2.0031;
+    bond_angles[2+3*i]=2.0653;
+    bond_angles[3+3*i]=2.17011;
+  }
+  int i=0;
+  while(i<Nbackbone){
+    dihedral_angles[i]=allpositions
+    
+  }
+
+}
+
 
 void initialize(string biasfname){
   Two_d_grid gridtemplate(gridx, gridy);
@@ -93,7 +124,7 @@ void initialize(string biasfname){
     bias_grid[i].readfiles(i,biasfname);
     bias_grid[i].setindices();
   }
-
+  Nbackbone=3*N_cvs/2 +1;
 }
 
 void print(int counter, vector<double> & allpositions){
