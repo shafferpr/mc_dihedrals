@@ -10,17 +10,16 @@ int gridx=200;
 int gridy=200;
 int N_cvs=0;
 double step_size=0.1;
-double beta=0.401606;
-double energy=0;
+vector <double> beta(8);
 int Nbackbone=0;
-int Nsteps=5500;
+int Nsteps=500;
 int Nsweeps=1000000;
 vector <Two_d_grid> bias_grid;
 
 void initialize(string);
 void run_mc();
-void print(int, vector<double> &, double);
-void backbone(int, vector<double> &);
+void print(int, vector<double> &, double, vector<double> &);
+void backbone(int, vector<double> &, vector<double> &);
 
 int main(int argc, char *argv[]){
   string biasfilename;
@@ -37,59 +36,86 @@ int main(int argc, char *argv[]){
 }
 
 void run_mc(){
-  vector <double> positions(20,0.0);
+  vector <vector <double> > positions;
   double pos_temp=0;
   double energy_delta=0;
+  int Nreplicas=7;
+  vector <double> energy(Nreplicas,0);
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   default_random_engine generator (seed);
   uniform_real_distribution<double> real_distribution(0.0,1.0);
-  uniform_int_distribution<int> distribution(0,N_cvs-1);
+  uniform_int_distribution<int> distributionA(0,N_cvs-1);
+  uniform_int_distribution<int> distributionB(0,Nreplicas-2);
   int dihedral_label=0;
+  int swap_pair=0;
   double xmax=3.141592654;
   double xmin=-3.14159264;
+  positions.resize(Nreplicas);
+  
+  for(int k=0; k<positions.size(); k++){
+    positions[k].resize(N_cvs);
+  }
+  
   for(int i=0; i<=Nsweeps; i++){
-    for(int j=0; j<=Nsteps; j++){
-      dihedral_label = distribution(generator);
-      pos_temp = positions[dihedral_label] + (real_distribution(generator)-0.5)*step_size;
+    for(int k=0; k<7; k++){
+      for(int j=0; j<=Nsteps; j++){
+	dihedral_label = distributionA(generator);
+	pos_temp = positions[k][dihedral_label] + (real_distribution(generator)-0.5)*step_size;
+	if(pos_temp>xmax-0.01){
+	  pos_temp=xmin+(pos_temp-xmax);
+	}
+	else if(pos_temp<xmin){
+	  pos_temp=xmax-(xmin-pos_temp)-0.001;
+	}
+	energy_delta=0;
+	if(dihedral_label>0 && dihedral_label< N_cvs-1){
+	  energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[k][dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[k][dihedral_label],positions[k][dihedral_label+1]);
+	  energy_delta += bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1],positions[k][dihedral_label]);
 
-      if(pos_temp>xmax-0.01){
-	pos_temp=xmin+(pos_temp-xmax);
-      }
-      else if(pos_temp<xmin){
-	pos_temp=xmax-(xmin-pos_temp)-0.001;
-      }
-
-      if(dihedral_label>0 && dihedral_label< N_cvs-1){
-	energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[dihedral_label],positions[dihedral_label+1]);
-
-	energy_delta += bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[dihedral_label-1],positions[dihedral_label]);
-
-      }
-      else if(dihedral_label==0){	
-	energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[dihedral_label],positions[dihedral_label+1]);
-
-      }
-      else{
-	energy_delta = bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[dihedral_label-1],positions[dihedral_label]);
-
-      }
-
-      if(energy_delta<0 || real_distribution(generator)<=exp(-beta*energy_delta)){
-	energy += energy_delta;
-	positions[dihedral_label]=pos_temp;
-
-      }
-      else{
-	//cout << "rejected\n";
-	pos_temp=pos_temp;
+	}
+	else if(dihedral_label==0){	
+	  energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[k][dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[k][dihedral_label],positions[k][dihedral_label+1]);
+	}
+	else{
+	  energy_delta = bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1],positions[k][dihedral_label]);
+	}
+	if(energy_delta<0 || real_distribution(generator)<=exp(-beta[k]*energy_delta)){
+	  energy[k] += energy_delta;
+	  positions[k][dihedral_label]=pos_temp;
+	  //cout << energy[k]<< "\n";
+	}
+	else{
+	  //cout << "rejected\n";
+	  pos_temp=pos_temp;
+	}
       }
     }
-    backbone(i, positions);  
+    swap_pair=distributionB(generator);
+    //cout <<swap_pair<< "\n";
+    double bf = (beta[swap_pair]-beta[swap_pair+1])*(energy[swap_pair+1]-energy[swap_pair]);
+    //cout <<bf << "\n";
+    if(bf>0 || real_distribution(generator)<exp(bf)){
+      for(int k=0; k<N_cvs; k++){
+	double tmp1=positions[swap_pair][k];
+	double tmp2=positions[swap_pair+1][k];
+	positions[swap_pair+1][k]=tmp1;
+	positions[swap_pair][k]=tmp2;
+      }
+      double tmp1=energy[swap_pair];
+      double tmp2=energy[swap_pair+1];
+      energy[swap_pair+1]=tmp1;
+      energy[swap_pair]=tmp2;
+      //if(swap_pair==4)
+      //cout << "accepted "<<swap_pair<< "\n";
+    }
+    if(i%10==0){
+      backbone(i, positions[0], energy);
+    }
   }
-
+  
 }
 
-void backbone(int counter, vector<double> & allpositions){
+void backbone(int counter, vector<double> & allpositions, vector<double> & allenergies){
   vector< vector <double> > backbone;
   vector< double > bond_distances(Nbackbone+6);
   vector< double > bond_angles(Nbackbone+6);
@@ -175,12 +201,12 @@ void backbone(int counter, vector<double> & allpositions){
   }
 
   double rx, ry, rz=0;
-  rx=backbone[17][0]-backbone[2][0];
-  ry=backbone[17][1]-backbone[2][1];
-  rz=backbone[17][2]-backbone[2][2];
+  rx=backbone[14][0]-backbone[2][0];
+  ry=backbone[14][1]-backbone[2][1];
+  rz=backbone[14][2]-backbone[2][2];
   double r2 = sqrt(rx*rx+ry*ry+rz*rz);
 
-  print(counter, allpositions, r2);
+  print(counter, allpositions, r2, allenergies);
   //cout << "hello 7\n";
   //cout << r2 <<" "<< bond_distances[3]<<" r2\n";
 }
@@ -197,9 +223,16 @@ void initialize(string biasfname){
   cout <<  bias_grid[0].GridValuesByIndex[20][20] <<"hello \n";
   cout << bias_grid[0].GridValuesAndCoordinates[0][2] << "\n";
   Nbackbone=3*N_cvs/2 +1;
+  beta[0]=0.400914;
+  beta[1]=0.359021;
+  beta[2]=0.32158;
+  beta[3]=0.288422;
+  beta[4]=0.25809;
+  beta[5]=0.23084;
+  beta[6]=0.20703;
 }
 
-void print(int counter, vector<double> & allpositions, double r2){
+void print(int counter, vector<double> & allpositions, double r2, vector<double> & allenergies){
   ofstream colvarfile;
   colvarfile.open("colvar.data", ios_base::app);
 
@@ -207,7 +240,14 @@ void print(int counter, vector<double> & allpositions, double r2){
     colvarfile << allpositions[i];
     colvarfile << " ";
   }
-
+  colvarfile << allenergies[0];
+  colvarfile << " ";
+  colvarfile << allenergies[1];
+  colvarfile << " ";
+  colvarfile << allenergies[2];
+  colvarfile << " ";
+  colvarfile << allenergies[3];
+  colvarfile << " ";
   colvarfile << r2;
   colvarfile << "\n";
 
