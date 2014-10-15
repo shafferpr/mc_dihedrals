@@ -14,7 +14,9 @@ double beta=0.401606;
 double energy=0;
 int Nbackbone=0;
 int Nsteps=5500;
-int Nsweeps=1000000;
+int Nsweeps=3000000;
+//int Nsteps=1;
+//int Nsweeps=1;
 vector <Two_d_grid> bias_grid;
 
 void initialize(string);
@@ -94,13 +96,15 @@ void backbone(int counter, vector<double> & allpositions){
   vector< double > bond_distances(Nbackbone+6);
   vector< double > bond_angles(Nbackbone+6);
   vector< double > dihedral_angles(Nbackbone+6);
-  //ofstream backbonefile;
-  //string bbstring ("backbone_atoms.xyz");
-  //backbonefile.open(bbstring,ios::out);
+  ofstream backbonefile;
+  string bbstring ("backbone_atoms.xyz");
+  backbonefile.open(bbstring,ios::out);
   backbone.resize(Nbackbone);
-  for(int k=0; k<Nbackbone; k++){
+
+  /*for(int k=0; k<Nbackbone; k++){
     backbone[k].resize(3);
   }
+
   backbone[0][0]=0;backbone[0][1]=0;backbone[0][2]=0;
   bond_distances[0]=0.133386;
   for(int k=0; k<=N_cvs/2; k++){
@@ -115,16 +119,35 @@ void backbone(int counter, vector<double> & allpositions){
     bond_angles[3+3*k]=2.17011;
   }
   int j1=0;
-  /*allpositions[0]=-0.1974;
-    allpositions[1]=0.01713;
-    allpositions[2]=0.8095;
-    allpositions[3]=-1.6332;
-    allpositions[4]=1.642;
-    allpositions[5]=-1.585;*/
+  allpositions[0]=-1.5;
+  allpositions[1]=0.01713;
+  allpositions[2]=0.8095;
+  allpositions[3]=-1.6332;
+  allpositions[4]=1.642;
+  allpositions[5]=-1.585;
+  allpositions[6]=2.04;
+  allpositions[7]=-1.4;
+  allpositions[8]=3.0;
+  allpositions[9]=-0.5;
+
+  allpositions[0]=3.1415926;
+  allpositions[1]=3.1415926;
+  allpositions[2]=3.1415926;
+  allpositions[3]=3.1415926;
+  allpositions[4]=3.1415926;
+  allpositions[5]=3.1415926;
+  allpositions[6]=3.1415926;
+  allpositions[7]=3.1415926;
+  allpositions[8]=3.1415926;
+  allpositions[9]=3.1415926;
+
   for(int k=0; k<Nbackbone/3; k++){
     dihedral_angles[3*k+0]=allpositions[j1];j1++;
+    cout <<dihedral_angles[3*k+0] << "\n";
     dihedral_angles[3*k+1]=allpositions[j1];j1++;
+    cout <<dihedral_angles[3*k+1] << "\n";
     dihedral_angles[3*k+2]=3.14159265;
+    cout <<dihedral_angles[3*k+2] << "\n";
   }
   vec terminal_vector(4);
   mat transformation_matrix(4,4,fill::eye);
@@ -133,9 +156,9 @@ void backbone(int counter, vector<double> & allpositions){
   new_matrix(2,2)=-1;
   new_matrix(0,3)=-bond_distances[0];
   terminal_vector(0)=0; terminal_vector(1)=0; terminal_vector(2)=0; terminal_vector(3)=1;
-
+  
   backbone[1][0]=-bond_distances[0];backbone[1][1]=0; backbone[1][2]=0;
-
+  
   transformation_matrix=transformation_matrix*new_matrix;
   new_matrix(0,0) = -cos(bond_angles[0]); new_matrix(0,1) = -sin(bond_angles[0]); new_matrix(0,2)=0; new_matrix(0,3)= -bond_distances[1]*cos(bond_angles[0]);
   new_matrix(1,0) = sin(bond_angles[0]); new_matrix(1,1) = -cos(bond_angles[0]); new_matrix(1,2)=0; new_matrix(1,3)= bond_distances[1]*sin(bond_angles[0]);
@@ -146,9 +169,10 @@ void backbone(int counter, vector<double> & allpositions){
   backbone[2][1]=transformation_matrix(1,3);
   backbone[2][2]=transformation_matrix(2,3);
 
-  //backbonefile <<"C "<<10*backbone[0][0] <<" "<<10*backbone[0][1]<<" "<<10*backbone[0][2]<<"\n";
-  //backbonefile <<"N "<<10*backbone[1][0] <<" "<<10*backbone[1][1]<<" "<<10*backbone[1][2]<<"\n";
-  //backbonefile <<"C "<<10*backbone[2][0] <<" "<<10*backbone[2][1]<<" "<<10*backbone[2][2]<<"\n";
+  backbonefile <<"C "<<backbone[0][0] <<" "<<backbone[0][1]<<" "<<backbone[0][2]<<"\n";
+  backbonefile <<"N "<<backbone[1][0] <<" "<<backbone[1][1]<<" "<<backbone[1][2]<<"\n";
+  backbonefile <<"C "<<backbone[2][0] <<" "<<backbone[2][1]<<" "<<backbone[2][2]<<"\n";
+
   double cos_ba=0; double sin_ba=0;
   double cos_da=0; double sin_da=0;
   for(int k=3; k<Nbackbone; k++){
@@ -165,20 +189,21 @@ void backbone(int counter, vector<double> & allpositions){
     backbone[k][1]=transformation_matrix(1,3);
     backbone[k][2]=transformation_matrix(2,3);
 
-    /*if(k%3==1){
-      backbonefile <<"N " <<10*backbone[k][0] <<" "<<10*backbone[k][1]<<" "<<10*backbone[k][2]<<"\n";
+    if(k%3==1){
+      backbonefile <<"N " <<backbone[k][0] <<" "<<backbone[k][1]<<" "<<backbone[k][2]<<"\n";
     }
     else{
-      backbonefile <<"C " <<10*backbone[k][0] <<" "<<10*backbone[k][1]<<" "<<10*backbone[k][2]<<"\n";
-      }*/
+      backbonefile <<"C " <<backbone[k][0] <<" "<<backbone[k][1]<<" "<<backbone[k][2]<<"\n";
+    }
     
   }
 
   double rx, ry, rz=0;
-  rx=backbone[17][0]-backbone[2][0];
-  ry=backbone[17][1]-backbone[2][1];
-  rz=backbone[17][2]-backbone[2][2];
-  double r2 = sqrt(rx*rx+ry*ry+rz*rz);
+  //rx=backbone[14][0]-backbone[2][0];
+  //ry=backbone[14][1]-backbone[2][1];
+  //rz=backbone[14][2]-backbone[2][2];
+  double r2 = sqrt(rx*rx+ry*ry+rz*rz);*/
+  double r2=0;
 
   print(counter, allpositions, r2);
   //cout << "hello 7\n";
@@ -201,7 +226,7 @@ void initialize(string biasfname){
 
 void print(int counter, vector<double> & allpositions, double r2){
   ofstream colvarfile;
-  colvarfile.open("colvar.data", ios_base::app);
+  colvarfile.open("colvar_nopt.data", ios_base::app);
 
   for(int i=0; i<N_cvs; i++){
     colvarfile << allpositions[i];
