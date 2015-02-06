@@ -13,6 +13,7 @@ int gridy=200;
 int N_cvs=0;
 double step_size=0.1;
 vector <double> beta(8);
+vector <double> crystal_dihedrals(50);
 int Nbackbone=0;
 int Nsteps=8000;
 int Nsweeps=5000000;
@@ -20,7 +21,7 @@ vector <Two_d_grid> bias_grid;
 
 void initialize(string);
 void run_mc();
-void print(int, vector<double> &, double, double, vector<double> &);
+void print(int, vector<double> &, double, double, double, double,  vector<double> &);
 void backbone(int, vector<double> &, vector<double> &);
 
 int main(int argc, char *argv[]){
@@ -61,8 +62,11 @@ void run_mc(){
   }
   
   for(int i=0; i<=Nsweeps; i++){
+    //cout << i << "\n"; 
     for(int k=0; k<Nreplicas; k++){
+      //cout << k << "\n"; 
       for(int j=0; j<=Nsteps; j++){
+	//cout << j << "\n"; 
 	dihedral_label = distributionA(generator);
 	pos_temp = positions[k][dihedral_label] + (real_distribution(generator)-0.5)*step_size;
 	if(pos_temp>xmax-0.01){
@@ -96,11 +100,13 @@ void run_mc(){
     }
     
     if(i%3==0){
+
       backbone(i,positions[0],energy);
+
     }
     swap_pair=distributionB(generator);
     double bf = (beta[swap_pair]-beta[swap_pair+1])*(energy[swap_pair+1]-energy[swap_pair]);
-
+    
     if(bf>0 || real_distribution(generator)<exp(bf)){
       for(int k=0; k<N_cvs; k++){
 	double tmp1=positions[swap_pair][k];
@@ -124,6 +130,8 @@ void backbone(int counter, vector<double> & allpositions, vector<double> & allen
   vector< double > bond_angles(Nbackbone+6);
   vector< double > dihedral_angles(Nbackbone+6);
   ofstream backbonefile;
+  double dihedral_rmsd1=0;
+  double dihedral_rmsd2=0;
   string bbstring ("backbone_atoms.xyz");
   backbonefile.open(bbstring,ios::out);
   backbone.resize(Nbackbone);
@@ -132,24 +140,25 @@ void backbone(int counter, vector<double> & allpositions, vector<double> & allen
   }
   backbone[0][0]=0;backbone[0][1]=0;backbone[0][2]=0;
   bond_distances[0]=0.133386;
-  for(int k=0; k<=N_cvs/2; k++){
-    bond_distances[1+3*k]=0.147101;
-    bond_distances[2+3*k]=0.1546;
-    bond_distances[3+3*k]=0.133649;
+  for(int k=0; k<=N_cvs/2+1; k++){
+    bond_distances[3*k]=0.147101;
+    bond_distances[1+3*k]=0.1546;
+    bond_distances[2+3*k]=0.133649;
   }
   bond_angles[0]=2.1957;
-  for(int k=0; k<=N_cvs/2; k++){
-    bond_angles[1+3*k]=2.0031;
-    bond_angles[2+3*k]=2.0653;
-    bond_angles[3+3*k]=2.17011;
+  for(int k=0; k<=N_cvs/2+1; k++){
+    bond_angles[3*k]=2.0031;
+    bond_angles[1+3*k]=2.0653;
+    bond_angles[2+3*k]=2.17011;
   }
   int j1=0;
 
   for(int k=0; k<Nbackbone/3; k++){
     dihedral_angles[3*k+0]=allpositions[j1];j1++;
-    dihedral_angles[3*k+1]=allpositions[j1];j1++;
-    dihedral_angles[3*k+2]=3.14159265;
+    dihedral_angles[3*k+1]=3.14159265;
+    dihedral_angles[3*k+2]=allpositions[j1];j1++;
   }
+
   vec terminal_vector(4);
   mat transformation_matrix(4,4,fill::eye);
   mat new_matrix(4,4,fill::eye);
@@ -191,22 +200,49 @@ void backbone(int counter, vector<double> & allpositions, vector<double> & allen
     
   }
 
+
   double rx, ry, rz=0;
-  rx=backbone[14][0]-backbone[2][0];
-  ry=backbone[14][1]-backbone[2][1];
-  rz=backbone[14][2]-backbone[2][2];
+  rx=backbone[28][0]-backbone[1][0];
+  ry=backbone[28][1]-backbone[1][1];
+  rz=backbone[28][2]-backbone[1][2];
   double r2 = sqrt(rx*rx+ry*ry+rz*rz);
   double meanx, meany, meanz=0;
-  meanx=(backbone[2][0]+backbone[5][0]+backbone[8][0]+backbone[11][0]+backbone[14][0])/5;
-  meany=(backbone[2][1]+backbone[5][1]+backbone[8][1]+backbone[11][1]+backbone[14][1])/5;
-  meanz=(backbone[2][2]+backbone[5][2]+backbone[8][2]+backbone[11][2]+backbone[14][2])/5;
-  double rg = sqrt(pow(backbone[2][0]-meanx,2)+pow(backbone[2][1]-meany,2)+pow(backbone[2][2]-meanz,2));
-  rg += sqrt(pow(backbone[5][0]-meanx,2)+pow(backbone[5][1]-meany,2)+pow(backbone[5][2]-meanz,2));
-  rg += sqrt(pow(backbone[8][0]-meanx,2)+pow(backbone[8][1]-meany,2)+pow(backbone[8][2]-meanz,2));
-  rg += sqrt(pow(backbone[11][0]-meanx,2)+pow(backbone[11][1]-meany,2)+pow(backbone[11][2]-meanz,2));
-  rg += sqrt(pow(backbone[14][0]-meanx,2)+pow(backbone[14][1]-meany,2)+pow(backbone[14][2]-meanz,2));
-  rg = rg/5;
-  print(counter, allpositions, r2, rg, allenergies);
+  meanx=(backbone[1][0]+backbone[4][0]+backbone[7][0]+backbone[10][0]+backbone[13][0]+backbone[16][0]+backbone[19][0]+backbone[22][0]+backbone[25][0]+backbone[28][0])/10;
+  meany=(backbone[1][1]+backbone[4][1]+backbone[7][1]+backbone[10][1]+backbone[13][1]+backbone[16][1]+backbone[19][1]+backbone[22][1]+backbone[25][1]+backbone[28][1])/10;
+  meanz=(backbone[1][2]+backbone[4][2]+backbone[7][2]+backbone[10][2]+backbone[13][2]+backbone[16][2]+backbone[19][2]+backbone[22][2]+backbone[25][2]+backbone[28][2])/10;
+  double rg = sqrt(pow(backbone[1][0]-meanx,2)+pow(backbone[1][1]-meany,2)+pow(backbone[1][2]-meanz,2));
+  rg += sqrt(pow(backbone[4][0]-meanx,2)+pow(backbone[4][1]-meany,2)+pow(backbone[4][2]-meanz,2));
+  rg += sqrt(pow(backbone[7][0]-meanx,2)+pow(backbone[7][1]-meany,2)+pow(backbone[7][2]-meanz,2));
+  rg += sqrt(pow(backbone[10][0]-meanx,2)+pow(backbone[10][1]-meany,2)+pow(backbone[10][2]-meanz,2));
+  rg += sqrt(pow(backbone[13][0]-meanx,2)+pow(backbone[13][1]-meany,2)+pow(backbone[13][2]-meanz,2));
+  rg += sqrt(pow(backbone[16][0]-meanx,2)+pow(backbone[16][1]-meany,2)+pow(backbone[16][2]-meanz,2));
+  rg += sqrt(pow(backbone[19][0]-meanx,2)+pow(backbone[19][1]-meany,2)+pow(backbone[19][2]-meanz,2));
+  rg += sqrt(pow(backbone[22][0]-meanx,2)+pow(backbone[22][1]-meany,2)+pow(backbone[22][2]-meanz,2));
+  rg += sqrt(pow(backbone[25][0]-meanx,2)+pow(backbone[25][1]-meany,2)+pow(backbone[25][2]-meanz,2));
+  rg += sqrt(pow(backbone[28][0]-meanx,2)+pow(backbone[28][1]-meany,2)+pow(backbone[28][2]-meanz,2));
+  rg = rg/10;
+  
+  rx=0;
+  dihedral_rmsd2=0; dihedral_rmsd1=0;
+  for( int k=0; k<N_cvs; k++){
+    rx=allpositions[k]-crystal_dihedrals[k];
+    if(rx>3.14159){
+      rx=-3.14159+(rx-3.14159);
+    }
+    if(rx<-3.14159){
+      rx=3.14159-(-3.14159-rx);
+    }
+    if(k<8){
+      dihedral_rmsd1+=rx*rx;
+    }
+    else{
+      dihedral_rmsd2+=rx*rx;
+    }
+  }
+  dihedral_rmsd1=sqrt(dihedral_rmsd1/8);
+  dihedral_rmsd2=sqrt(dihedral_rmsd2/10);
+  print(counter, allpositions, r2, rg, dihedral_rmsd1, dihedral_rmsd2, allenergies);
+
   //cout << "hello 7\n";
   //cout << r2 <<" "<< bond_distances[3]<<" r2\n";
 }
@@ -221,26 +257,45 @@ void initialize(string biasfname){
     bias_grid[i].setindices();
   }
 
-  Nbackbone=3*N_cvs/2 +1;
-  beta[0]=0.400914;
-  beta[1]=0.359021;
-  beta[2]=0.32158;
-  beta[3]=0.288422;
-  beta[4]=0.25809;
-  beta[5]=0.23084;
-  beta[6]=0.20703;
-  beta[7]=0.18503;
+  Nbackbone=3*N_cvs/2 +2;
+  beta[0]=0.353742*340/340;
+  beta[1]=0.31684*340/340;
+  beta[2]=0.28379*340/340;
+  beta[3]=0.25419*340/340;
+  beta[4]=0.22767*340/340;
+  beta[5]=0.20392*340/340;
+  beta[6]=0.18265*340/340;
+  beta[7]=0.16359*340/340;
   ofstream colvarfile;
   //colvarfile.open("colvar_pt5rep.data", ios_base::app);
-  colvarfile.open("colvar.data", ios_base::app);
-  colvarfile <<"#! FIELDS time phi-1 psi-1 phi-2 psi-2 phi-3 psi-3 phi-4 psi-4 phi-5 psi-5 d1 rg"<<"\n";
+  colvarfile.open("colvar_t340.data", ios_base::app);
+  colvarfile <<"#! FIELDS time psi-1 phi-2 psi-2 phi-3 psi-3 phi-4 psi-4 phi-5 psi-5 phi-6 psi-6 phi-7 psi-7 phi-8 psi-8 phi-9 psi-9 phi-10 d1 rg dihedral_rmsd1 dihedral_rmsd2"<<"\n";
   colvarfile.close();
+  crystal_dihedrals[0]=2.14;
+  crystal_dihedrals[1]=-2.52;
+  crystal_dihedrals[2]=1.98;
+  crystal_dihedrals[3]=-1.58;
+  crystal_dihedrals[4]=1.98;
+  crystal_dihedrals[5]=-1.34;
+  crystal_dihedrals[6]=-0.26;
+  crystal_dihedrals[7]=-0.89011;
+  crystal_dihedrals[8]=-1.1519;
+  crystal_dihedrals[9]=-1.5882;
+  crystal_dihedrals[10]=-0.36651;
+  crystal_dihedrals[11]=1.4486;
+  crystal_dihedrals[12]=0.078;
+  crystal_dihedrals[13]=-1.186;
+  crystal_dihedrals[14]=1.867;
+  crystal_dihedrals[15]=-1.308;
+  crystal_dihedrals[16]=2.356;
+  crystal_dihedrals[17]=-2.635;
+
 }
 
-void print(int counter, vector<double> & allpositions, double r2, double rg, vector<double> & allenergies){
+void print(int counter, vector<double> & allpositions, double r2, double rg, double dihedral_rmsd1, double dihedral_rmsd2, vector<double> & allenergies){
   ofstream colvarfile;
   //colvarfile.open("colvar_pt5rep.data", ios_base::app);
-  colvarfile.open("colvar.data", ios_base::app);
+  colvarfile.open("colvar_t340.data", ios_base::app);
   colvarfile << counter<<" ";
   for(int i=0; i<N_cvs; i++){
     colvarfile << allpositions[i];
@@ -248,6 +303,8 @@ void print(int counter, vector<double> & allpositions, double r2, double rg, vec
   }
   colvarfile << r2 <<" ";
   colvarfile << rg <<" ";
+  colvarfile << dihedral_rmsd1 <<" ";
+  colvarfile << dihedral_rmsd2 <<" ";
   colvarfile << "\n";
 
   colvarfile.close();
