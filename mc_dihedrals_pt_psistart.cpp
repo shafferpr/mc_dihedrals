@@ -42,7 +42,7 @@ void run_mc(){
   vector <vector <double> > positions;
   double pos_temp=0;
   double energy_delta=0;
-  int Nreplicas=8;
+  int Nreplicas=3;
   vector <double> energy(Nreplicas,0);
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   default_random_engine generator (seed);
@@ -99,7 +99,7 @@ void run_mc(){
       }
     }
     
-    if(i%3==0){
+    if(i%2==0){
 
       backbone(i,positions[0],energy);
 
@@ -231,16 +231,22 @@ void backbone(int counter, vector<double> & allpositions, vector<double> & allen
     }
     if(rx<-3.14159){
       rx=3.14159-(-3.14159-rx);
-    }
+      }
     if(k<8){
-      dihedral_rmsd1+=rx*rx;
+      //if(k!=2){
+	dihedral_rmsd1+=rx*rx;
+	//}
+      //dihedral_rmsd1+=0.5+0.5*cos(rx);
     }
     else{
       dihedral_rmsd2+=rx*rx;
+      //dihedral_rmsd2+=0.5+0.5*cos(rx);
     }
   }
   dihedral_rmsd1=sqrt(dihedral_rmsd1/8);
   dihedral_rmsd2=sqrt(dihedral_rmsd2/10);
+  //dihedral_rmsd1=dihedral_rmsd1;
+  //dihedral_rmsd2=dihedral_rmsd2;
   print(counter, allpositions, r2, rg, dihedral_rmsd1, dihedral_rmsd2, allenergies);
 
   //cout << "hello 7\n";
@@ -249,7 +255,7 @@ void backbone(int counter, vector<double> & allpositions, vector<double> & allen
 
 
 void initialize(string biasfname){
-  Two_d_grid gridtemplate(gridx, gridy);
+  Two_d_grid gridtemplate(gridx, gridy, 2*3.141592654, 2*3.141592654, -3.141592654, -3.141592654);
 //Nbiases is the number of 2d_grids you want to make, gridx, and gridy are the number of gridpoints you are using
   for(int i=0; i<Nbiases; i++){
     bias_grid.push_back(gridtemplate);
@@ -268,7 +274,7 @@ void initialize(string biasfname){
   beta[7]=0.16359*340/340;
   ofstream colvarfile;
   //colvarfile.open("colvar_pt5rep.data", ios_base::app);
-  colvarfile.open("colvar_t340.data", ios_base::app);
+  colvarfile.open("colvar.data", ios_base::app);
   colvarfile <<"#! FIELDS time psi-1 phi-2 psi-2 phi-3 psi-3 phi-4 psi-4 phi-5 psi-5 phi-6 psi-6 phi-7 psi-7 phi-8 psi-8 phi-9 psi-9 phi-10 d1 rg dihedral_rmsd1 dihedral_rmsd2"<<"\n";
   colvarfile.close();
   crystal_dihedrals[0]=2.14;
@@ -295,7 +301,7 @@ void initialize(string biasfname){
 void print(int counter, vector<double> & allpositions, double r2, double rg, double dihedral_rmsd1, double dihedral_rmsd2, vector<double> & allenergies){
   ofstream colvarfile;
   //colvarfile.open("colvar_pt5rep.data", ios_base::app);
-  colvarfile.open("colvar_t340.data", ios_base::app);
+  colvarfile.open("colvar.data", ios_base::app);
   colvarfile << counter<<" ";
   for(int i=0; i<N_cvs; i++){
     colvarfile << allpositions[i];

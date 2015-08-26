@@ -11,8 +11,6 @@ using namespace std;
 
 class Two_d_grid
 {
-  double xrange, yrange;
-  double xmin, ymin;
   double xspacing, yspacing;
  public:
   std::vector< vector <double> > GridValuesAndCoordinates;
@@ -22,7 +20,9 @@ class Two_d_grid
   void readfiles(int,string);
   void setindices();
   double getvalue_linearinterpolation(double, double);
-  Two_d_grid(int,int);
+  double xrange, yrange;
+  double xmin, ymin;
+  Two_d_grid(int,int,double,double,double,double);
   Two_d_grid();
 };
 
@@ -44,16 +44,20 @@ Two_d_grid::Two_d_grid()
   }
   }*/
 
-Two_d_grid::Two_d_grid(int a, int b)
+Two_d_grid::Two_d_grid(int a, int b, double xr, double yr, double xm, double ym)
 {
   grid_dimensions.resize(2);
   grid_dimensions[0]=a;
   grid_dimensions[1]=b;
   grid_size=grid_dimensions[0]*grid_dimensions[1];
-  xrange=2*3.141592654;
+  /*xrange=2*3.141592654;
   yrange=2*3.141592654;
   xmin=-3.141592654;
-  ymin=-3.141592654;
+  ymin=-3.141592654;*/
+  xrange=xr;
+  yrange=yr;
+  xmin=xm;
+  ymin=ym;
   xspacing=xrange/grid_dimensions[0];
   yspacing=yrange/grid_dimensions[1];
   GridValuesByIndex.resize(grid_dimensions[0]);
@@ -84,7 +88,8 @@ void Two_d_grid::readfiles(int pair_identifier, string biasfilename_)
 	//cout << values_char[0] << "\n";
 	values[i]=atof(values_char);
 	}*/
-      ss >> values[0] >> values[1] >> values[2] >> dum1 >> dum2;
+      //ss >> values[0] >> values[1] >> values[2] >> dum1 >> dum2;
+      ss >> values[0] >> values[1] >> values[2];
       values[2]=-values[2];
       counter += 1;
       ss.clear();
@@ -100,20 +105,28 @@ void Two_d_grid::setindices()
 {
   for(int i=0; i<grid_size; i++){
     double x= GridValuesAndCoordinates[i][0]-xmin;
-    int index1=(x+0.0001)/xspacing;
+    int index1=(x-0.0001)/xspacing;
     double y=GridValuesAndCoordinates[i][1]-ymin;
-    int index2=(y+0.0001)/yspacing;
+    int index2=(y-0.0001)/yspacing;
+    //if(x>7){
+      //cout << i << " "<< index1<< " "<< index2<< " "<< GridValuesByIndex[index1][index2] << "\n";
+      //cout <<x << " "<<y<<" "<< i << " "<< index1<< " "<< index2<< " " << "\n";
+    //}    
     GridValuesByIndex[index1][index2]=GridValuesAndCoordinates[i][2];
-    //if(index1==100 && index2==101)
-    //cout << GridValuesAndCoordinates[i][0] <<" " << GridValuesAndCoordinates[i][1] << " " << GridValuesByIndex[index1][index2] <<" " << xspacing << "\n";
-  }
 
+  }
 }
 
 double Two_d_grid::getvalue_linearinterpolation(double x, double y)
 {
   signed int index1 = (x-xmin+0.0001)/xspacing;
   signed int index2 = (y-ymin+0.0001)/yspacing;
+  //cout << xrange<<"\n";
+  if(xrange > 7){
+    //cout << "hi"<<"\n";
+    index1 = (x-xmin-0.00001)/xspacing;
+    index2 = (y-ymin-0.00001)/yspacing;
+  }
   double x1 = xmin+xspacing*index1;
   double y1 = ymin+yspacing*index2;
   vector <double> point1(3);
@@ -123,7 +136,7 @@ double Two_d_grid::getvalue_linearinterpolation(double x, double y)
   vector <double> point2_point1(3);
   vector <double> point3_point1(3);
   //if(index1>198 || index1 <0 || index2>199 || index2<0)
-  // printf("%d %d\n", index1, index2);
+  //printf("%d %d %f %f\n", index1, index2, x1, y1);
   point1[0]=x1; point1[1]=y1; point1[2]=GridValuesByIndex[index1][index2];
   point2[0]=x1+xspacing; point2[1]=y1;
   point3[0]=x1; point3[1]=y1+yspacing;
