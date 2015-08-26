@@ -20,6 +20,7 @@ int Nbackbone=0;
 int Nreplicas=0;
 int Nsteps=8000;
 int Nsweeps=5000000;
+int N_Configs=0;
 double kappa=0;
 double bessel=0;
 vector <vector <int>> binary_configs;
@@ -27,8 +28,9 @@ vector <vector <int>> binary_configs;
 //int Nsweeps=0;
 vector <Two_d_grid> bias_grid;
 Two_d_grid alphabetabias(200,200,8,9,0,0);
-void initialize(string, string);
-void run_mc();
+void initialize1(string, string);
+void initialize2();
+void run_mc(int);
 void gen_initial(int);
 void print(int, vector<double> &, double, double, double, double,  vector<double> &, double);
 void backbone(int, vector<double> &, vector<double> &, double);
@@ -46,45 +48,44 @@ int main(int argc, char *argv[]){
     kappa = atof(argv[6]);
     bessel = atof(argv[7]);
   }
-  binary_configs.resize(140000);
-  for(int i=0; i<binary_configs.size(); i++){
-    binary_configs[i].resize(17);
-  }
+
   
   gen_initial(N_cvs);
-  initialize(biasfilename,alphabetabiasfname);
-  run_mc();
-  
+  initialize1(biasfilename,alphabetabiasfname);
+  for(int i1=0; i1<N_CONFIGS; i1++){
+    initialize2();
+    run_mc(i1);
+  }
   return 0; 
 }
 
 
 void gen_initial(int n_dihedrals){
-  vector <vector <int> > dh_configs; 
   int n_configs=0;
   n_configs=pow(2,n_dihedrals);
-  dh_configs.resize(n_configs);
-  for(int i=0; i<n_configs; i++){
-    dh_configs[i].resize(n_dihedrals);
+  binary_configs.resize(n_configs);
+  for(int i=0; i<binary_configs.size(); i++){
+    binary_configs[i].resize(n_dihedrals);
   }
   
   for(int i=0; i<n_configs; i++){
     bitset<32> A = i;
     for(int j=0; j<n_dihedrals; j++){
-      dh_configs[i][j]=A[n_dihedrals-1-k];
+      binary_configs[i][j]=A[n_dihedrals-1-k];
     }
   }
-  
+  N_CONFIGS=n_configs;
 }
 
 
-void run_mc(){
+void run_mc(int config_number){
   vector <vector <double> > positions;
   double pos_temp=0;
   double energy_delta=0;
   double alphabeta1new=0;
   double alphabeta2new=0;
   vector <double> energy(Nreplicas,0);
+  vector <double> initialPos(N_cvs);
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
   default_random_engine generator (seed);
   uniform_real_distribution<double> real_distribution(0.0,1.0);
@@ -106,12 +107,14 @@ void run_mc(){
   for(int k=0; k<positions.size(); k++){
     positions[k].resize(N_cvs);
     for(int j=0; j<N_cvs; j++){
-      if(j<15){
-	positions[k][j]=crystal_dihedrals[j]+0.3;
-	//positions[k][j]=crystal_dihedrals[j];
+      positions[k][j]=initial_positions[j][binary_configs[config_number][j]];
+      initialPos[j]=positions[k][j];
+      rx=positions[k][j]-crystal_dihedrals[j];
+      if(k<8){
+	alphabeta[j][0] += (0.5+0.5*cos(rx));
       }
       else{
-	positions[k][j]=crystal_dihedrals[j];
+	alphabeta[j][1] += (0.5+0.5*cos(rx));
       }
     }
   }
@@ -200,7 +203,7 @@ void run_mc(){
 	//alphabeta2new=sqrt(alphabeta2new/9);
 	//cout << " " << alphabeta1new << " "<<alphabeta2new<<" "<<alphabeta[k][0]<<" "<<alphabeta[k][1]<<" "<< "\n";
 	energy_delta=0;
-	
+
 	if(dihedral_label>0 && dihedral_label< N_cvs-1){
 	  energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[k][dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[k][dihedral_label],positions[k][dihedral_label+1]);
 	  energy_delta += bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1],positions[k][dihedral_label]);
@@ -223,7 +226,7 @@ void run_mc(){
 	  energy_delta += increment+pofsinc;
 	  //cout<<"end " << increment << " " << alphabeta1new << " "<<alphabeta2new<<" "<<alphabeta[k][0]<<" "<<alphabeta[k][1]<<" "<<increment<< "\n";
 	}
-	if((energy_delta<0 && alphabeta1new<7.9 && alphabeta2new<8.9) || (real_distribution(generator)<=exp(-beta[k]*energy_delta) && alphabeta1new<7.9 && alphabeta2new<8.9)){
+	if((energy_delta<0 && alphabeta1new<7.9 && alphabeta2new<8.9 && pos_temp<(initialPos[dihedral_label]+0.4) && pos_temp>(initialPos[dihedral_label]-0.4)) || (real_distribution(generator)<=exp(-beta[k]*energy_delta) && alphabeta1new<7.9 && alphabeta2new<8.9) && pos_temp<(initialPos[dihedral_label]+0.4) && pos_temp>(initialPos[dihedral_label]-0.4)){
 	  energy[k] += energy_delta;
 	  positions[k][dihedral_label]=pos_temp;
 	  alphabeta[k][0]=alphabeta1new;
@@ -489,7 +492,7 @@ void backbone(int counter, vector<double> & allpositions, vector<double> & allen
 }
 
 
-void initialize(string biasfname, string alphabetabiasfname){
+void initialize1(string biasfname, string alphabetabiasfname){
   Two_d_grid gridtemplate(gridx, gridy, 2*3.141592654, 2*3.141592654, -3.141592654, -3.141592654);
   //Two_d_grid gridtemplateb(gridx, gridy, 8, 10, 0, 0);
 //Nbiases is the number of 2d_grids you want to make, gridx, and gridy are the number of gridpoints you are using
@@ -507,13 +510,6 @@ void initialize(string biasfname, string alphabetabiasfname){
   Nbackbone=3*N_cvs/2 +5;
   Nreplicas=1;
   beta[0]=0.353742;
-  beta[1]=0.3306;
-  beta[2]=0.3089;
-  beta[3]=0.2887;
-  beta[4]=0.2698;
-  beta[5]=0.2552;
-  beta[6]=0.2357;
-  beta[7]=0.2202;
   ofstream colvarfile;
   //colvarfile.open("colvar_pt5rep.data", ios_base::app);
   colvarfile.open(outfile, ios_base::app);
@@ -538,37 +534,50 @@ void initialize(string biasfname, string alphabetabiasfname){
   crystal_dihedrals[15]=2.356;
   crystal_dihedrals[16]=-2.635;
 
-
+  initial_positions[0][0]=;
+  initial_positions[0][1]=;
+  initial_positions[1][0]=;
+  initial_positions[1][1]=;
+  initial_positions[2][0]=;
+  initial_positions[2][1]=;
+  initial_positions[3][0]=;
+  initial_positions[3][1]=;
+  initial_positions[4][0]=;
+  initial_positions[4][1]=;
+  initial_positions[5][0]=;
+  initial_positions[5][1]=;
+  initial_positions[6][0]=;
+  initial_positions[6][1]=;
+  initial_positions[7][0]=;
+  initial_positions[7][1]=;
+  initial_positions[8][0]=;
+  initial_positions[8][1]=;
+  initial_positions[9][0]=;
+  initial_positions[9][1]=;
+  initial_positions[10][0]=;
+  initial_positions[10][1]=;
+  initial_positions[11][0]=;
+  initial_positions[11][1]=;
+  initial_positions[12][0]=;
+  initial_positions[12][1]=;
+  initial_positions[13][0]=;
+  initial_positions[13][1]=;
+  initial_positions[14][0]=;
+  initial_positions[14][1]=;
+  initial_positions[15][0]=;
+  initial_positions[15][1]=;
+  initial_positions[16][0]=;
+  initial_positions[16][1]=;
 
   alphabeta.resize(Nreplicas);
   for(int k=0; k<alphabeta.size(); k++){
     alphabeta[k].resize(2);
   }
+
+}
+
+void initialize2(){
   double rx=0;
-  for(int j=0; j<Nreplicas; j++){
-    for(int k=0; k<N_cvs; k++){
-      rx=0-crystal_dihedrals[k];
-      rx=0;//start from crystal structure
-      if(k<15){
-	rx=0.3;
-      }
-      if(k<8){
-	//dihedral_rmsd1+=rx*rx;
-	alphabeta[j][0]+=(0.5+0.5*cos(rx));
-	//alphabeta[j][0]+=rx*rx;
-      }
-      else{
-	//dihedral_rmsd2+=rx*rx;
-	alphabeta[j][1]+=(0.5+0.5*cos(rx));
-	//alphabeta[j][1]+=rx*rx;
-      }
-    }
-    //alphabeta[j][0]=sqrt(alphabeta[j][0]/8);
-    //alphabeta[j][1]=sqrt(alphabeta[j][1]/9);
-    //alphabeta[j][0]+=1;
-    cout << alphabeta[j][0] << " " << alphabeta[j][1]<< "\n";
-  }
-  
 
 }
 
