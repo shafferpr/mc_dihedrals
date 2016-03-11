@@ -12,6 +12,8 @@ int gridx=200;
 int gridy=200;
 int N_cvs=0;
 double step_size=0.1;
+double pos_step_size=0.2;
+double orientation_step_size=0.3;
 vector <double> beta(8);
 vector <double> crystal_dihedrals(50);
 vector <double> alphahelix_dihedrals(50);
@@ -22,11 +24,13 @@ int Nbackbone=0;
 int Nreplicas=0;
 int Nsteps=8000;
 int Nsweeps=5000000;
+int N_proteins=0;
 double kappa=0;
 double bessel=0;
 double fold_weight=0;
 //int Nsteps=0;
 //int Nsweeps=0;
+
 vector <Two_d_grid> bias_grid;
 Two_d_grid alphabetabias(200,200,8,9,0,0);
 void initialize(string, string);
@@ -42,6 +46,7 @@ int main(int argc, char *argv[]){
     N_cvs = atoi( argv[1]);
     Nbiases = atoi (argv[2]);
     biasfilename = argv[3];
+    N_proteins = atoi (argv[4]);
     alphabetabiasfname = argv[4];
     outfile=argv[5];
     kappa = atof(argv[6]);
@@ -57,10 +62,19 @@ int main(int argc, char *argv[]){
 }
 
 void run_mc(){
-  vector <vector <double> > positions;
-  double pos_temp=0;
+  vector <vector <vector <double> > > dihedral_angles(Nreplicas, vector <vector <double> >(N_proteins, vector <double>(N_cvs))); //index order: 1st corresponds to replica, 2nd to protein, 3rd to dihedral 
+  vector <vector <vector <double> > > positions(Nreplicas, vector <vector <double> >(N_proteins, vector <double>(3)));
+  vector <vector <vector <double> > > orientations(Nreplicas, vector <vector <double> >(N_proteins, vector <double>(3)));
+  vector <vector <double> > ab_alphahelix(Nreplicas, vector <double >(N_proteins));
+  vector <vector <double> > ab_betasheet(Nreplicas, vector <double >(N_proteins));
+
+  vector<double> pos_temp(3);
+  vector<double> orientation_temp(3);
+  double angle_temp=0;
   double energy_delta=0;
   double alphabeta1new=0;
+  double ab_alphahelix_new=0;
+  double ab_betasheet_new=0;
   double alphabeta2new=0;
   vector <double> energy(Nreplicas,0);
   unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
@@ -68,7 +82,9 @@ void run_mc(){
   uniform_real_distribution<double> real_distribution(0.0,1.0);
   uniform_int_distribution<int> distributionA(0,N_cvs-1);
   uniform_int_distribution<int> distributionB(0,Nreplicas-2);
+  uniform_int_distribution<int> distributionC(0,N_proteins-1);
   int dihedral_label=0;
+  int protein_label=0;
   int swap_pair=0;
   double xmax=3.141592654;
   double xmin=-3.14159264;
@@ -79,22 +95,60 @@ void run_mc(){
   double attempts=0;
   double increment=0;
   double rx=0;
+  double rx2=0;
   double pofsinc=0;
-  positions.resize(Nreplicas);
-  for(int k=0; k<positions.size(); k++){
-    positions[k].resize(N_cvs);
+  double r1=0;
+  double r2=0;
+  double r3=0;
+  double r0=0;
+  double rsq=0;
+  double d1=0;
+  double d2=0;
+  double d3=0;
+  double d0=0;
+
+  /*for(int k=0; k<positions.size(); k++){
     for(int j=0; j<N_cvs; j++){
       if(j<15){
 	positions[k][j]=crystal_dihedrals[j]+0.3;
 	positions[k][j]=initial_dihedrals[j];
-	//positions[k][j]=crystal_dihedrals[j];
       }
       else{
 	positions[k][j]=crystal_dihedrals[j];
 	positions[k][j]=initial_dihedrals[j];
       }
     }
+    }*/
+
+
+  for(int k=0; k<positions.size(); k++){
+    for(int j=0; j<positions[k].size(); j++){
+      
+      positions[k][j][0]=2.07*real_distribution(generator);
+      positions[k][j][1]=2.07*real_distribution(generator);
+      positions[k][j][2]=2.07*real_distribution(generator);
+      
+      orientations[k][j][0]=0;
+      orientations[k][j][1]=0;
+      if(j%2==0){
+	orientations[k][j][2]=1;
+      }
+      else{
+	orientations[k][j][2]=-1;
+      }
+      ab_alphahelix[k][j]=0;
+      ab_betasheet[k][j]=0;
+      for(int j1=0; j1<dihedral_angles[k][j].size(); j1++){
+	dihedral_angles[k][j][j1]=-3.14+real_distribution(generator)*2*3.14;
+	double angle_delta = dihedral_angles[k][j][j1]-alphahelix_dihedrals[j1];
+	ab_alphahelix[k][j] += 0.5+0.5*cos(angle_delta);
+	angle_delta = dihedral_angles[k][j][j1]-betasheet_dihedrals[j1];
+	ab_betasheet[k][j] += 0.5+0.5*cos(angle_delta);
+      }
+
+    }
   }
+
 
   for(int i=0; i<=Nsweeps; i++){
     //cout << i << "\n"; 
@@ -103,21 +157,40 @@ void run_mc(){
       for(int j=0; j<=Nsteps; j++){
 	//cout << j << "\n"; 
 	dihedral_label = distributionA(generator);
-	pos_temp = positions[k][dihedral_label] + (real_distribution(generator)-0.5)*step_size;
-	//cout << dihedral_label<< "\n";
+	protein_label = distributionC(generator);
+	angle_temp = dihedral_angles[k][protein_label][dihedral_label] + (real_distribution(generator)-0.5)*step_size;
+	pos_temp[0] = positions[k][protein_label][0]+(real_distribution(generator)-0.5)*pos_step_size;
+	pos_temp[1] = positions[k][protein_label][1]+(real_distribution(generator)-0.5)*pos_step_size;
+	pos_temp[2] = positions[k][protein_label][2]+(real_distribution(generator)-0.5)*pos_step_size;
 
 	if(real_distribution(generator)<0.2){
-	  pos_temp=pos_temp+3.14;
+	  angle_temp=angle_temp+3.14;
 	}
 
-	if(pos_temp>xmax-0.01){
-	  pos_temp=xmin+(pos_temp-xmax);
+	if(angle_temp>xmax-0.01){
+	  angle_temp=xmin+(angle_temp-xmax);
 	}
-	else if(pos_temp<xmin){
-	  pos_temp=xmax-(xmin-pos_temp)-0.001;
+	else if(angle_temp<xmin){
+	  angle_temp=xmax-(xmin-angle_temp)-0.001;
 	}
-	
-
+	rsq=2;
+	while(rsq >= 1){
+	  r1= 1-2*real_distribution(generator);
+	  r2= 1-2*real_distribution(generator);   
+	  rsq=r1*r1 + r2*r2;
+	}
+	r0=2*sqrt(1-rsq);
+	r1=orientation_step_size*r1*r0;
+	r2=orientation_step_size*r2*r0;
+	r3=orientation_step_size*(1-2*rsq);
+	d1=orientations[k][protein_label][0]+r1;
+	d2=orientations[k][protein_label][1]+r2;
+	d3=orientations[k][protein_label][2]+r3;
+	d0=d1*d1 + d2*d2 + d3*d3;
+	d0=sqrt(d0);
+	orientation_temp[0]=d1/d0;
+	orientation_temp[1]=d2/d0;
+	orientation_temp[2]=d3/d0;
 	
 	alphabeta1new=0;
 	
@@ -126,12 +199,12 @@ void run_mc(){
 
 	for(int j1=0; j1<N_cvs; j1++){
 	  if(j1==dihedral_label){
-	    pofsnew *= exp(kappa*cos(pos_temp-crystal_dihedrals[j1]))/bessel;
-	    pofsold *= exp(kappa*cos(positions[k][j1]-crystal_dihedrals[j1]))/bessel;
+	    pofsnew *= exp(kappa*cos(angle_temp-crystal_dihedrals[j1]))/bessel;
+	    pofsold *= exp(kappa*cos(dihedral_angles[k][j1]-crystal_dihedrals[j1]))/bessel;
 	  }
 	  else{
-	    pofsnew *= exp(kappa*cos(positions[k][j1]-crystal_dihedrals[j1]))/bessel;
-	    pofsold *= exp(kappa*cos(positions[k][j1]-crystal_dihedrals[j1]))/bessel;
+	    pofsnew *= exp(kappa*cos(dihedral_angles[k][j1]-crystal_dihedrals[j1]))/bessel;
+	    pofsold *= exp(kappa*cos(dihedral_angles[k][j1]-crystal_dihedrals[j1]))/bessel;
 	  }
 	}
 	
@@ -142,9 +215,10 @@ void run_mc(){
 	pofsold+=1;
 	pofsinc = (log(pofsold)-log(pofsnew))/beta[0];//beta[0] or beta[k]
 	//cout << pofsinc << " " << pofsold << " " << pofsnew << " \n";
-	for(int j1=0; j1<8; j1++){
+	for(int j1=0; j1<12; j1++){
 	  if(j1==dihedral_label){
-	    rx=pos_temp-crystal_dihedrals[dihedral_label];
+	    rx=angle_temp-alphahelix_dihedrals[dihedral_label];
+	    rx2=angle_temp-betasheet_dihedrals[dihedral_label];
 	    if(rx>3.14159){
 	      rx=-3.14159+(rx-3.14159);
 	    }
@@ -153,7 +227,8 @@ void run_mc(){
 	    }
 	  }
 	  else{
-	    rx=positions[k][j1]-crystal_dihedrals[j1];
+	    rx=dihedral_angles[k][protein_label][j1]-alphahelix_dihedrals[j1];
+	    rx2=dihedral_angles[k][protein_label][j1]-betasheet_dihedrals[j1];
 	    if(rx>3.14159){
 	      rx=-3.14159+(rx-3.14159);
 	    }
@@ -161,64 +236,72 @@ void run_mc(){
 	      rx=3.14159-(-3.14159-rx);
 	    }
 	  }
-	  alphabeta1new+=0.5+0.5*cos(rx);
+	  ab_alphahelix_new+=0.5+0.5*cos(rx);
+	  ab_betasheet_new+=0.5+0.5*cos(rx2);
 	}
-	//alphabeta1new=sqrt(alphabeta1new/8);
-	
-	alphabeta2new = 0;
-	
-	for(int j1=8; j1<N_cvs; j1++){
-	  if(j1==dihedral_label){
-	    rx=pos_temp-crystal_dihedrals[dihedral_label];
-	    if(rx>3.14159){
-	      rx=-3.14159+(rx-3.14159);
-	    }
-	    if(rx<-3.14159){
-	      rx=3.14159-(-3.14159-rx);
-	    }
-	  }
-	  else{
-	    rx=positions[k][j1]-crystal_dihedrals[j1];
-	    if(rx>3.14159){
-	      rx=-3.14159+(rx-3.14159);
-	    }
-	    if(rx<-3.14159){
-	      rx=3.14159-(-3.14159-rx);
-	    }
-	  }
-	  alphabeta2new+=0.5+0.5*cos(rx);
-	}
-	//alphabeta2new=sqrt(alphabeta2new/9);
-	//cout << " " << alphabeta1new << " "<<alphabeta2new<<" "<<alphabeta[k][0]<<" "<<alphabeta[k][1]<<" "<< "\n";
+
 	energy_delta=0;
 	
 	if(dihedral_label>0 && dihedral_label< N_cvs-1){
-	  energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[k][dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[k][dihedral_label],positions[k][dihedral_label+1]);
-	  energy_delta += bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1],positions[k][dihedral_label]);
-	  //cout<< "inc1\n";
-	  increment = alphabetabias.getvalue_linearinterpolation(alphabeta1new,alphabeta2new)-alphabetabias.getvalue_linearinterpolation(alphabeta[k][0],alphabeta[k][1]);
-	  //cout<<"med " << increment << " " << alphabeta1new << " "<<alphabeta2new<<" "<<alphabeta[k][0]<<" "<<alphabeta[k][1]<<" "<<increment<<"\n";
-	  energy_delta += increment + pofsinc;
+	  energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(angle_temp, dihedral_angles[k][protein_label][dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(dihedral_angles[k][protein_label][dihedral_label],dihedral_angles[k][protein_label][dihedral_label+1]);
+	  energy_delta += bias_grid[dihedral_label-1].getvalue_linearinterpolation(dihedral_angles[k][protein_label][dihedral_label-1], angle_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(dihedral_angles[k][protein_label][dihedral_label-1],dihedral_angles[k][dihedral_label]);
+
 	}
 	else if(dihedral_label==0){	
-	  energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(pos_temp, positions[k][dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(positions[k][dihedral_label],positions[k][dihedral_label+1]);
-	  //cout<< "inc2\n";
-	  //cout << energy_delta << "\n";
-	  increment = alphabetabias.getvalue_linearinterpolation(alphabeta1new,alphabeta2new)-alphabetabias.getvalue_linearinterpolation(alphabeta[k][0],alphabeta[k][1]);
-	  //cout<<"beg " << increment << " " << alphabeta1new << " "<<alphabeta2new<<" "<<alphabeta[k][0]<<" "<<alphabeta[k][1]<<" "<<increment<<"\n";
-	  energy_delta += increment+pofsinc;
+	  energy_delta = bias_grid[dihedral_label].getvalue_linearinterpolation(angle_temp, dihedral_angles[k][protein_label][dihedral_label+1])-bias_grid[dihedral_label].getvalue_linearinterpolation(dihedral_angles[k][protein_label][dihedral_label],dihedral_angles[k][protein_label][dihedral_label+1]);
+
 	}
 	else{
-	  energy_delta = bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1], pos_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(positions[k][dihedral_label-1],positions[k][dihedral_label]);
-	  //cout<< "inc2\n";
-	  increment = alphabetabias.getvalue_linearinterpolation(alphabeta1new,alphabeta2new)-alphabetabias.getvalue_linearinterpolation(alphabeta[k][0],alphabeta[k][1]);
-	  energy_delta += increment+pofsinc;
-	  //cout<<"end " << increment << " " << alphabeta1new << " "<<alphabeta2new<<" "<<alphabeta[k][0]<<" "<<alphabeta[k][1]<<" "<<increment<< "\n";
+	  energy_delta = bias_grid[dihedral_label-1].getvalue_linearinterpolation(dihedral_angles[k][protein_label][dihedral_label-1], angle_temp)-bias_grid[dihedral_label-1].getvalue_linearinterpolation(dihedral_angles[k][protein_label][dihedral_label-1],dihedral_angles[k][protein_label][dihedral_label]);
+
 	}
+	
+	energy_delta += alphabetabias_helix.getvalue_linearinterpolation(ab_alphahelix_new)-alphabetabias_helix.getvalue_linearinterpolation(ab_alphahelix[k][protein_label]);
+
+	energy_delta += alphabetabias_sheet.getvalue_linearinterpolation(ab_betasheet_new)-alphabetabias_sheet.getvalue_linearinterpolation(ab_betasheet[k][protein_label]);
+
+	for(int i1=0; i1< N_proteins; i1++){
+	  if(i1 != protein_label){
+	    double ip_r=0;
+	    double ip_r_new=0;
+	    double interproteinx = positions[k][protein_label][0]-positions[k][i1][0];
+	    double interproteiny = positions[k][protein_label][1]-positions[k][i1][1];
+	    double interproteinz = positions[k][protein_label][2]-positions[k][i1][2];
+	    double interproteinx_new = postemp[0]-positions[k][i1][0];
+	    double interproteiny_new = postemp[1]-positions[k][i1][1];
+	    double interproteinz_new = postemp[2]-positions[k][i1][2];
+	    ip_r = pow(interproteinx*interproteinx + interproteiny*interproteiny + interproteinz*interproteinz, 0.5);
+	    ip_r_new = pow(interproteinx_new*interproteinx_new + interproteiny_new*interproteiny_new + interproteinz_new*interproteinz_new, 0.5);
+
+
+	  }
+	  
+
+	  
+	  energy_delta += ;
+
+	}
+
+	energy_delta += pofsinc;
+
+
 	if((energy_delta<0 && alphabeta1new<7.98 && alphabeta2new<8.98) || (real_distribution(generator)<=exp(-beta[k]*energy_delta) && alphabeta1new<7.98 && alphabeta2new<8.98)){
 	  energy[k] += energy_delta;
-	  positions[k][dihedral_label]=pos_temp;
+	  dihedral_angles[k][protein_label][dihedral_label]=angle_temp;
+	  positions[k][protein_label][0]=pos_temp[0];
+	  positions[k][protein_label][1]=pos_temp[1];
+	  positions[k][protein_label][2]=pos_temp[2];
+	  
+	  orientations[k][protein_label][0]=orientation_temp[0];
+	  orientations[k][protein_label][1]=orientation_temp[1];
+	  orientations[k][protein_label][2]=orientation_temp[2];
+	  
+	  
+	  ab_alphahelix[k][protein_label]=ab_alphahelix_new;
+	  ab_betasheet[k][protein_label]=ab_betasheet_new;
+
 	  alphabeta[k][0]=alphabeta1new;
+
 	  alphabeta[k][1]=alphabeta2new;
 	  if(k==0){
 	    pofs0=pofsnew;
@@ -226,7 +309,7 @@ void run_mc(){
 	}
 	else{
 	  //cout << "rejected\n";
-	  pos_temp=pos_temp;
+	  angle_temp=angle_temp;
 	  if(k==0){
 	    pofs0=pofsold;
 	  }
@@ -236,7 +319,7 @@ void run_mc(){
     
     if(i%2==0){
       //cout << "hello\n";
-      backbone(i,positions[0],energy,pofs0);
+      backbone(i,dihedral_angles[0],energy,pofs0);
     }
     
     //swap_pair=distributionB(generator);
@@ -244,10 +327,10 @@ void run_mc(){
     
     /*if(bf>0 || real_distribution(generator)<exp(bf)){
       for(int k=0; k<N_cvs; k++){
-	double tmp1=positions[swap_pair][k];
-	double tmp2=positions[swap_pair+1][k];
-	positions[swap_pair+1][k]=tmp1;
-	positions[swap_pair][k]=tmp2;	
+	double tmp1=dihedral_angles[swap_pair][k];
+	double tmp2=dihedral_angles[swap_pair+1][k];
+	dihedral_angles[swap_pair+1][k]=tmp1;
+	dihedral_angles[swap_pair][k]=tmp2;	
       }
       for(int k=0; k<2; k++){
 	double tmp1=alphabeta[swap_pair][k];
@@ -583,42 +666,35 @@ void initialize(string biasfname, string alphabetabiasfname){
   crystal_dihedrals[16]=-2.0;
 
 
-  alphahelix_dihedrals[0]=-0.78;
-  alphahelix_dihedrals[1]=-1.0;
-  alphahelix_dihedrals[2]=-0.78;
-  alphahelix_dihedrals[3]=-1.0;
-  alphahelix_dihedrals[4]=-0.78;
-  alphahelix_dihedrals[5]=-0.78;
-  alphahelix_dihedrals[6]=-1.0;
-  alphahelix_dihedrals[7]=-0.78;
-  alphahelix_dihedrals[8]=-1.0;
-  alphahelix_dihedrals[9]=-0.78;
-  alphahelix_dihedrals[10]=-1.0;
-  alphahelix_dihedrals[11]=-0.78;
-  alphahelix_dihedrals[12]=-1.0;
-  alphahelix_dihedrals[13]=-0.78;
-  alphahelix_dihedrals[14]=-1.0;
-  alphahelix_dihedrals[15]=-0.78;
-  alphahelix_dihedrals[16]=-1.0;
+  alphahelix_dihedrals[0]=-1.047;
+  alphahelix_dihedrals[1]=-0.785;
+  alphahelix_dihedrals[2]=-1.047;
+  alphahelix_dihedrals[3]=-0.785;
+  alphahelix_dihedrals[4]=-1.047;
+  alphahelix_dihedrals[5]=-0.785;
+  alphahelix_dihedrals[6]=-1.047;
+  alphahelix_dihedrals[7]=-0.785;
+  alphahelix_dihedrals[8]=-1.047;
+  alphahelix_dihedrals[9]=-0.785;
+  alphahelix_dihedrals[10]=-1.047;
+  alphahelix_dihedrals[11]=-0.785;
+  alphahelix_dihedrals[12]=-1.047;
 
 
-  betastrand_dihedrals[0]=2.35;
-  betastrand_dihedrals[1]=-2.35;
-  betastrand_dihedrals[2]=2.35;
-  betastrand_dihedrals[3]=-2.35;
-  betastrand_dihedrals[4]=2.35;
+
+  betastrand_dihedrals[0]=-2.44;
+  betastrand_dihedrals[1]=2.35;
+  betastrand_dihedrals[2]=-2.44;
+  betastrand_dihedrals[3]=2.35;
+  betastrand_dihedrals[4]=-2.44;
   betastrand_dihedrals[5]=2.35;
-  betastrand_dihedrals[6]=-2.35;
+  betastrand_dihedrals[6]=-2.44;
   betastrand_dihedrals[7]=2.35;
-  betastrand_dihedrals[8]=-2.35;
+  betastrand_dihedrals[8]=-2.44;
   betastrand_dihedrals[9]=2.35;
-  betastrand_dihedrals[10]=-2.35;
+  betastrand_dihedrals[10]=-2.44;
   betastrand_dihedrals[11]=2.35;
-  betastrand_dihedrals[12]=-2.35;
-  betastrand_dihedrals[13]=2.35;
-  betastrand_dihedrals[14]=-2.35;
-  betastrand_dihedrals[15]=2.35;
-  betastrand_dihedrals[16]=-2.35;
+  betastrand_dihedrals[12]=-2.44;
 
 
   initial_dihedrals[0]=-1.5;
@@ -635,9 +711,8 @@ void initialize(string biasfname, string alphabetabiasfname){
   initial_dihedrals[11]=3;
   initial_dihedrals[12]=-1.5;
   initial_dihedrals[13]=2.2;
-  initial_dihedrals[14]=-1.4;
-  initial_dihedrals[15]=2.3;
-  initial_dihedrals[16]=-1.4;
+
+
   alphabeta.resize(Nreplicas);
   for(int k=0; k<alphabeta.size(); k++){
     alphabeta[k].resize(2);

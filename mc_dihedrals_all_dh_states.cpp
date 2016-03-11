@@ -21,7 +21,7 @@ vector <vector <double> > initial_positions;
 int Nbackbone=0;
 int Nreplicas=0;
 int Nsteps=500;
-int Nsweeps=1200;
+int Nsweeps=1000;
 int N_Configs=0;
 double kappa=0;
 double bessel=0;
@@ -58,6 +58,8 @@ int main(int argc, char *argv[]){
     initialize2();
     run_mc(i1);
   }
+
+  //run_mc(19114);
   return 0; 
 }
 
@@ -136,6 +138,8 @@ void run_mc(int config_number){
   double energypsav=0;
   double energyab=0;
   double energyabav=0;
+  double ab1av=0;
+  double ab2av=0;
   positions.resize(Nreplicas);
   
   alphabeta[0][0]=0;
@@ -159,7 +163,7 @@ void run_mc(int config_number){
   for(int k=0; k<Nreplicas; k++){
     energy[k]=0;
     for(int j=0; j<Nbiases; j++){
-      energy[k]+=bias_grid[dihedral_label].getvalue_linearinterpolation(positions[k][j], positions[k][j+1]);
+      energy[k]+=bias_grid[j].getvalue_linearinterpolation(positions[k][j], positions[k][j+1]);
     }
     energy[k]+=alphabetabias.getvalue_linearinterpolation(alphabeta[k][0],alphabeta[k][1]);
     energyab = alphabetabias.getvalue_linearinterpolation(alphabeta[k][0],alphabeta[k][1]);
@@ -284,7 +288,7 @@ void run_mc(int config_number){
 	}
 	
 	rmax=cos(pos_temp-initialPos[dihedral_label]);
-	if((energy_delta<0 && alphabeta1new<7.9 && rmax>0.4) || (real_distribution(generator)<=exp(-beta[k]*energy_delta) && alphabeta1new<7.9 && rmax>0.4)){
+	if((energy_delta<0 && alphabeta1new<7.97 && rmax>0.4) || (real_distribution(generator)<=exp(-beta[k]*energy_delta) && alphabeta1new<7.97 && rmax>0.4)){
 	  energy[k] += energy_delta;
 	  positions[k][dihedral_label]=pos_temp;
 	  alphabeta[k][0]=alphabeta1new;
@@ -314,26 +318,30 @@ void run_mc(int config_number){
       energyav+=energy[0];
       energypsav+=energyps;
       energyabav+=energyab;
+      ab1av+=alphabeta[0][0];
+      ab2av+=alphabeta[0][1];
       if(energy[0]<energymin){
 	energymin=energy[0];
       }
       counter+=1;
-      //cout << alphabeta[0][0] << " " << alphabeta[0][1]<< "\n";
-    }
-    
+      //cout << alphabeta[0][0] << " " << alphabeta[0][1]<<" "<< energy[0] <<" "<<energyps<<" " << energyab << "\n";
+    }    
   }
   
   partition_function = -log(partition_function);
   energyav=energyav/counter;
   energypsav=energypsav/counter;
   energyabav=energyabav/counter;
-  cout << config_number << " " << partition_function << " " << energyav << "\n";
+  ab1av=ab1av/counter;
+  ab2av=ab2av/counter;
+  //cout << config_number << " " << partition_function << " " << energyav << "\n";
   ofstream colvarfile;
   colvarfile.open(outfile, ios_base::app);
-  colvarfile << config_number <<" " << partition_function << " " << energyav << " " << energymin << " " << energypsav << " " << energyabav << "\n";
+  colvarfile << config_number <<" " << partition_function << " " << energyav << " " << energymin << " " << energypsav << " " << energyabav << " "<< ab1av << " " << ab2av << "\n";
   colvarfile.close();
 }
-  
+
+
 void backbone(int counter, vector<double> & allpositions, vector<double> & allenergies, double pofs0){
   vector< vector <double> > backbone;
   vector< double > bond_distances(Nbackbone+8);
@@ -558,11 +566,11 @@ void initialize1(string biasfname, string alphabetabiasfname){
   for(int i=0; i<Nbiases; i++){
     //cout<< i<< " " << Nbiases << "\n";
     bias_grid.push_back(gridtemplate);
-    bias_grid[i].readfiles(i,biasfname);
+    bias_grid[i].readfiles(i+1,biasfname);
     bias_grid[i].setindices();
   }
   //cout << "hello 1\n";
-  alphabetabias.readfiles(0,alphabetabiasfname);
+  alphabetabias.readfiles(1,alphabetabiasfname);
   //cout << "hello 1.5\n";
   alphabetabias.setindices();
   //cout << "index set\n";

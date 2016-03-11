@@ -71,13 +71,14 @@ void Two_d_grid::readfiles(int pair_identifier, string biasfilename_)
   string s;
   string line;
   int counter=0;
-  double dum1, dum2=0;
+  string dum1, dum2;
   stringstream ss;
   vector <double> values(3);
   char values_char[10];
   s=std::to_string(pair_identifier);
   ifstream bias_file (biasfilename_+s, ifstream::in);
   //bias_file.open(biasfilename_+s);
+
   while( getline(bias_file, line)){
     if(!line.empty()){
       ss << line;
@@ -88,13 +89,13 @@ void Two_d_grid::readfiles(int pair_identifier, string biasfilename_)
 	//cout << values_char[0] << "\n";
 	values[i]=atof(values_char);
 	}*/
-      //ss >> values[0] >> values[1] >> values[2] >> dum1 >> dum2;
-      ss >> values[0] >> values[1] >> values[2];
+      ss >> values[0] >> values[1] >> values[2] >> dum1 >> dum2;
+      //ss >> values[0] >> values[1] >> values[2];
       values[2]=-values[2];
       counter += 1;
       ss.clear();
       GridValuesAndCoordinates.push_back(values);
-      //if(pair_identifier==3 && counter>39990)
+      //if(values[0]>4 && values[1]>4)
       //cout << values[0]<< " " << values[1] << " " << values[2] << "\n";
     }
   }
@@ -113,7 +114,6 @@ void Two_d_grid::setindices()
       //cout <<x << " "<<y<<" "<< i << " "<< index1<< " "<< index2<< " " << "\n";
     //}    
     GridValuesByIndex[index1][index2]=GridValuesAndCoordinates[i][2];
-
   }
 }
 
