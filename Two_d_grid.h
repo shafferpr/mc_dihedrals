@@ -122,11 +122,12 @@ double Two_d_grid::getvalue_linearinterpolation(double x, double y)
   signed int index1 = (x-xmin+0.0001)/xspacing;
   signed int index2 = (y-ymin+0.0001)/yspacing;
   //cout << xrange<<"\n";
-  if(xrange > 7){
+  if(x > (xmin+1)){
     //cout << "hi"<<"\n";
-    index1 = (x-xmin-0.00001)/xspacing;
-    index2 = (y-ymin-0.00001)/yspacing;
+    //index1 = (x-xmin-0.00001)/xspacing;
+    //index2 = (y-ymin-0.00001)/yspacing;
   }
+  //cout << "li 1 "<< x << " " << y << " " << "\n";
   double x1 = xmin+xspacing*index1;
   double y1 = ymin+yspacing*index2;
   vector <double> point1(3);
@@ -137,10 +138,17 @@ double Two_d_grid::getvalue_linearinterpolation(double x, double y)
   vector <double> point3_point1(3);
   //if(index1>198 || index1 <0 || index2>199 || index2<0)
   //printf("%d %d %f %f\n", index1, index2, x1, y1);
+  //cout << index1 << " " << index2 << " " << "\n";
+  if(index1 == 200){
+    index1=199;
+  }
+  if(index2 ==200){
+    index2=199;
+  }
   point1[0]=x1; point1[1]=y1; point1[2]=GridValuesByIndex[index1][index2];
   point2[0]=x1+xspacing; point2[1]=y1;
   point3[0]=x1; point3[1]=y1+yspacing;
-
+  //cout << index1 << " " << index2 << " " << "\n";
   if(index1==(grid_dimensions[0]-1) && index2==(grid_dimensions[1]-1)){
     point2[2]=GridValuesByIndex[0][index2];
     point3[2]=GridValuesByIndex[index1][0];
@@ -155,6 +163,7 @@ double Two_d_grid::getvalue_linearinterpolation(double x, double y)
     point2[2]=GridValuesByIndex[index1+1][index2];
     point3[2]=GridValuesByIndex[index1][index2+1]; 
   }
+  
   //printf("a %f b %f c %f %d %d\n", point1[0], point1[1], point1[2], index1, index2);
   //printf("a %f b %f c %f\n", point2[0], point2[1], point2[2]);
   //printf("a %f b %f c %f\n", point3[0], point3[1], point3[2]);
