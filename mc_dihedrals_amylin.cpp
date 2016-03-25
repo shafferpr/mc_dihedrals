@@ -45,7 +45,7 @@ Two_d_grid angle_distance(200,200,3.141592654,3.4,0,0.2);
 void initialize(string, string, string, string, string, string);
 void run_mc();
 void print(int, vector< vector <double> > &,  vector< vector <double> > &, vector <double> &, vector <double> &);
-void backbone(int, vector<double> &, vector<double> &, double);
+void backbone(int, vector <double> &, vector <double> &, vector <double> &, int, int);
 string outfile;
 string trajectoryfile;
 
@@ -56,7 +56,7 @@ int main(int argc, char *argv[]){
   string ab_helix_distance_filename;
   string ab_sheet_distance_filename;
   string angle_distance_filename;
-
+  
   if(argc>1){
     N_cvs = atoi( argv[1]);
     Nbiases = atoi (argv[2]);
@@ -72,10 +72,10 @@ int main(int argc, char *argv[]){
     kappa = atof(argv[12]);
     bessel = atof(argv[13]);
   }
-
+  
   initialize(biasfilename,ab_helix_filename,ab_sheet_filename,ab_helix_distance_filename,ab_sheet_distance_filename,angle_distance_filename);
-
-
+  
+  
   run_mc();
   
   return 0; 
@@ -183,8 +183,9 @@ void run_mc(){
 	angle_delta = dihedral_angles[k][j][j1]-betasheet_dihedrals[j1];
 	ab_betasheet[k][j] += 0.5+0.5*cos(angle_delta);
       }
+      //cout << ab_alphahelix[k][j] << " ab ah \n";
       backbone(0, dihedral_angles[k][j], orientations[k][j], positions[k][j], k, j);
-      cout << ab_alphahelix[k][j] << " ab ah \n";
+      //cout << ab_alphahelix[k][j] << " ab ah \n";
     }
   }
 
@@ -396,8 +397,7 @@ void run_mc(){
     }
     
     if(i%2==0){
-      //cout << "hello\n";
-      //backbone(i,dihedral_angles[0],energy,pofs0);
+      backbone(i, dihedral_angles[0][protein_label], orientations[0][protein_label], positions[0][protein_label], 0, protein_label);
       print(i, positions[0], orientations[0], ab_alphahelix[0], ab_betasheet[0]);
     }
     
@@ -427,7 +427,6 @@ void run_mc(){
 }
 
 void backbone(int counter, vector<double> & allpositions, vector <double> & orientation, vector <double> & center_position, int replica_number, int protein_number){
-  vector< vector <double> > backbone;
   vector< double > bond_distances(Nbackbone+8);
   vector< double > bond_angles(Nbackbone+8);
   vector< double > dihedral_angles(Nbackbone+8);
@@ -437,36 +436,33 @@ void backbone(int counter, vector<double> & allpositions, vector <double> & orie
   double alphahelix_ab=0;
   double betastrand_ab=0;
   string bbstring ("backbone_atoms.xyz");
-  backbonefile.open(bbstring,ios::out);
-  backbone.resize(Nbackbone);
-  for(int k=0; k<Nbackbone; k++){
-    backbone[k].resize(3);
-  }
-  backbone[0][0]=0;backbone[0][1]=0;backbone[0][2]=0;
+  //cout << "hello\n";
   bond_distances[0]=0.133386;
   for(int k=0; k<=N_cvs/2+2; k++){
     bond_distances[3*k]=0.147101;
     bond_distances[1+3*k]=0.1546;
     bond_distances[2+3*k]=0.133649;
   }
-
+  
   bond_angles[0]=2.1957;
   for(int k=0; k<=N_cvs/2+2; k++){
     bond_angles[3*k]=2.0031;
     bond_angles[1+3*k]=2.0653;
     bond_angles[2+3*k]=2.17011;
   }
-
+  
   int j1=0;
-
-  for(int k=0; k<Nbackbone/3; k++){
+  //cout << "hello\n";  
+  //cout << allpositions.size() << " y\n";
+  for(int k=0; k<Nbackbone/3-1; k++){
+    //cout << k << " \n";
     dihedral_angles[3*k+0]=allpositions[j1];j1++;
     dihedral_angles[3*k+1]=allpositions[j1];j1++;
-    dihedral_angles[3*k+2]=14159265;
+    dihedral_angles[3*k+2]= 3.14159265;
+    //cout << j1 << " c\n";
   }
-
   
-  
+  //cout << atomistic_configurations[replica_number][protein_number][2][0] << " ok\n";  
   vec terminal_vector(4);
   mat transformation_matrix(4,4,fill::eye);
   mat new_matrix(4,4,fill::eye);
@@ -474,19 +470,21 @@ void backbone(int counter, vector<double> & allpositions, vector <double> & orie
   new_matrix(2,2)=-1;
   new_matrix(0,3)=-bond_distances[0];
   terminal_vector(0)=0; terminal_vector(1)=0; terminal_vector(2)=0; terminal_vector(3)=1;
-
+  
+  atomistic_configurations[replica_number][protein_number][0][0]=0;atomistic_configurations[replica_number][protein_number][0][1]=0; atomistic_configurations[replica_number][protein_number][0][2]=0;
+  
   atomistic_configurations[replica_number][protein_number][1][0]=-bond_distances[0];atomistic_configurations[replica_number][protein_number][1][1]=0; atomistic_configurations[replica_number][protein_number][1][2]=0;
-
+  //cout << atomistic_configurations[replica_number][protein_number][2][0] << " \n";
   transformation_matrix=transformation_matrix*new_matrix;
   new_matrix(0,0) = -cos(bond_angles[0]); new_matrix(0,1) = -sin(bond_angles[0]); new_matrix(0,2)=0; new_matrix(0,3)= -bond_distances[1]*cos(bond_angles[0]);
   new_matrix(1,0) = sin(bond_angles[0]); new_matrix(1,1) = -cos(bond_angles[0]); new_matrix(1,2)=0; new_matrix(1,3)= bond_distances[1]*sin(bond_angles[0]);
   new_matrix(2,2)=1;
-
+  //cout << atomistic_configurations[replica_number][protein_number][2][0] << " \n";  
   transformation_matrix=transformation_matrix*new_matrix;
   atomistic_configurations[replica_number][protein_number][2][0]=transformation_matrix(0,3);
   atomistic_configurations[replica_number][protein_number][2][1]=transformation_matrix(1,3);
   atomistic_configurations[replica_number][protein_number][2][2]=transformation_matrix(2,3);
-
+  //cout << atomistic_configurations[replica_number][protein_number][2][0] << " \n";
   //backbonefile <<"N "<<10*backbone[0][0] <<" "<<10*backbone[0][1]<<" "<<10*backbone[0][2]<<"\n";
   //backbonefile <<"C "<<10*backbone[1][0] <<" "<<10*backbone[1][1]<<" "<<10*backbone[1][2]<<"\n";
   //backbonefile <<"C "<<10*backbone[2][0] <<" "<<10*backbone[2][1]<<" "<<10*backbone[2][2]<<"\n";
@@ -514,8 +512,49 @@ void backbone(int counter, vector<double> & allpositions, vector <double> & orie
       //}
   
   }
+  vec orientation_vec(3);
+  double refx=atomistic_configurations[replica_number][protein_number][2][0];   double refy=atomistic_configurations[replica_number][protein_number][2][1];   double refz=atomistic_configurations[replica_number][protein_number][2][2];
   
+  for(int k=0; k<Nbackbone; k++){
+    atomistic_configurations[replica_number][protein_number][k][0] -= refx;
+    atomistic_configurations[replica_number][protein_number][k][1] -= refy;
+    atomistic_configurations[replica_number][protein_number][k][2] -= refz;
+  }
+  orientation_vec(0) = atomistic_configurations[replica_number][protein_number][20][0]-atomistic_configurations[replica_number][protein_number][2][0];
+  orientation_vec(1) = atomistic_configurations[replica_number][protein_number][20][1]-atomistic_configurations[replica_number][protein_number][2][1];  
+  orientation_vec(2) = atomistic_configurations[replica_number][protein_number][20][2]-atomistic_configurations[replica_number][protein_number][2][2];
+  refx= sqrt(pow(orientation_vec(0),2)+pow(orientation_vec(1),2)+pow(orientation_vec(2),2));
+  orientation_vec(0) /= refx; orientation_vec(1) /= refx;   orientation_vec(2) /= refx;
+  vec target_orientation(3);
+  target_orientation(0)=orientation[0]; target_orientation(1)=orientation[1]; target_orientation(2)=orientation[2];
+  vec cross_product(3);
+  cross_product = cross(orientation_vec,target_orientation);
+  refx = sqrt(pow(cross_product(0),2) + pow(cross_product(1),2) + pow(cross_product(2),2) );
+  double theta = asin(refx);
+  
+  double sin_theta= sin(theta);   double cos_theta= cos(theta);
+  
+  mat rotation_matrix(3,3);
+  orientation_vec(0) /= refx;   orientation_vec(1) /= refx;   orientation_vec(2) /= refx;
+  
+  rotation_matrix(0,0)= cos_theta + orientation_vec(0)*orientation_vec(0)*(1-cos_theta); rotation_matrix(0,1) = orientation_vec(0)*orientation_vec(1)*(1-cos_theta) - orientation_vec(2)*sin_theta; rotation_matrix(0,2)= orientation_vec(0)*orientation_vec(2)*(1-cos_theta) + orientation_vec(1)*sin_theta;
+  rotation_matrix(1,0) = orientation_vec(0)*orientation_vec(1)*(1-cos_theta) - orientation_vec(2)*sin_theta; rotation_matrix(1,1)=cos_theta + orientation_vec(1)*orientation_vec(1)*(1-cos_theta); rotation_matrix(1,2)= orientation_vec(1)*orientation_vec(2)*(1-cos_theta) + orientation_vec(0)*sin_theta;
+  rotation_matrix(2,0) = orientation_vec(0)*orientation_vec(2)*(1-cos_theta) + orientation_vec(1)*sin_theta; rotation_matrix(2,1) = orientation_vec(1)*orientation_vec(2)*(1-cos_theta) + orientation_vec(0)*sin_theta; rotation_matrix(2,2)= cos_theta + orientation_vec(2)*orientation_vec(2)*(1-cos_theta);
 
+  vec unrotated_position(3);
+  vec rotated_position(3);
+  for(int k=0; k<Nbackbone; k++){
+    unrotated_position(0)= atomistic_configurations[replica_number][protein_number][k][0]; unrotated_position(1)= atomistic_configurations[replica_number][protein_number][k][1]; unrotated_position(2)= atomistic_configurations[replica_number][protein_number][k][2];
+    rotated_position = rotation_matrix*unrotated_position;
+    atomistic_configurations[replica_number][protein_number][k][0]=rotated_position(0); atomistic_configurations[replica_number][protein_number][k][1]=rotated_position(1); atomistic_configurations[replica_number][protein_number][k][2]=rotated_position(2);
+  }
+  refx = center_position[0] - atomistic_configurations[replica_number][protein_number][8][0]; refy = center_position[1] - atomistic_configurations[replica_number][protein_number][8][1]; refz = center_position[2] - atomistic_configurations[replica_number][protein_number][8][2];
+  
+  
+  for(int k=0; k<Nbackbone; k++){
+    atomistic_configurations[replica_number][protein_number][k][0] + refx; atomistic_configurations[replica_number][protein_number][k][1] + refy; atomistic_configurations[replica_number][protein_number][k][2] + refz;
+  }
+  
   /*
   double rx, ry, rz=0;
   rx=backbone[28][0]-backbone[1][0];
@@ -636,6 +675,10 @@ void initialize(string biasfname, string ab_helix_filename, string ab_sheet_file
     atomistic_configurations[i].resize(N_proteins);
     for(int j=0; j<N_proteins; j++){
       atomistic_configurations[i][j].resize(Nbackbone);
+      for(int k=0; k<Nbackbone; k++){
+	atomistic_configurations[i][j][k].resize(3);
+	//cout << atomistic_configurations[i][j][k].size() << "\n";
+      }
     }
   }
 
