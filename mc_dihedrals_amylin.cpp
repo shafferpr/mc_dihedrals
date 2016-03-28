@@ -46,6 +46,9 @@ void initialize(string, string, string, string, string, string);
 void run_mc();
 void print(int, vector< vector <double> > &,  vector< vector <double> > &, vector <double> &, vector <double> &);
 void backbone(int, vector <double> &, vector <double> &, vector <double> &, int, int);
+int check_for_overlaps(int);
+void print_trajectory(int);
+
 string outfile;
 string trajectoryfile;
 
@@ -130,6 +133,7 @@ void run_mc(){
   double d0=0;
   double flat_norm=0;
   int outofbounds=0;
+  int Noverlaps=0;
   //flat_norm = 1/(pow(2*3.1415926,2*N_cvs)*3.4*3.1415926);
   flat_norm = 1/(3.4*3.1415926);
 
@@ -185,6 +189,7 @@ void run_mc(){
       }
       //cout << ab_alphahelix[k][j] << " ab ah \n";
       backbone(0, dihedral_angles[k][j], orientations[k][j], positions[k][j], k, j);
+
       //cout << ab_alphahelix[k][j] << " ab ah \n";
     }
   }
@@ -352,6 +357,7 @@ void run_mc(){
 	    //energy_delta=0;
 	    energy_delta += (log(pofsold)-log(pofsnew))/beta[0];
 	    //cout << energy_delta << " b\n";
+	  
 	    if(ip_r_new>3.6 || ip_r_new<0.2){
 	      outofbounds+=1;
 	      //cout << outofbounds << " outofbounds \n";
@@ -377,7 +383,9 @@ void run_mc(){
 	  orientations[k][protein_label][0]=orientation_temp[0];
 	  orientations[k][protein_label][1]=orientation_temp[1];
 	  orientations[k][protein_label][2]=orientation_temp[2];	  
+	  backbone(0, dihedral_angles[k][protein_label], orientations[k][protein_label], positions[k][protein_label], k, protein_label);	  
 	  
+	  //check_for_overlaps(protein_label);
 	  ab_alphahelix[k][protein_label]=ab_alphahelix_new;
 	  ab_betasheet[k][protein_label]=ab_betasheet_new;
 	  
@@ -399,6 +407,7 @@ void run_mc(){
     if(i%2==0){
       backbone(i, dihedral_angles[0][protein_label], orientations[0][protein_label], positions[0][protein_label], 0, protein_label);
       print(i, positions[0], orientations[0], ab_alphahelix[0], ab_betasheet[0]);
+      print_trajectory(i);
     }
     
     //swap_pair=distributionB(generator);
@@ -425,6 +434,48 @@ void run_mc(){
   }
 
 }
+
+
+void print_trajectory(int timestep){
+  ofstream backbonefile;
+  string bbstring ("backbone_atoms.xyz");
+  backbonefile.open(bbstring,ios::out);
+
+  int Noverlaps = check_for_overlaps(0);
+  for(int i=0; i<N_proteins; i++){
+    for(int j=0; j<Nbackbone; j++){
+      if( (j-1) % 3 == 0){
+	backbonefile << "N " << 10*atomistic_configurations[0][i][j][0] << " " << 10*atomistic_configurations[0][i][j][1] << " " << 10*atomistic_configurations[0][i][j][2] << "\n";
+      }
+      else{
+	backbonefile << "C " << 10*atomistic_configurations[0][i][j][0] << " " << 10*atomistic_configurations[0][i][j][1] << " " << 10*atomistic_configurations[0][i][j][2] << "\n";
+      }
+    }
+  }
+  backbonefile.close();
+}
+
+
+int check_for_overlaps(int protein_number){
+  int Noverlaps=0;
+  for(int i=0; i<N_proteins; i++){
+    for(int i1=i+1; i1<N_proteins; i1++){
+      for(int j=0; j<Nbackbone; j++){
+	for(int j1=j+1; j1<Nbackbone; j1++){
+	  double rx=atomistic_configurations[0][i][j][0]-atomistic_configurations[0][i1][j1][0];
+	  double ry=atomistic_configurations[0][i][j][1]-atomistic_configurations[0][i1][j1][1];
+	  double rz=atomistic_configurations[0][i][j][2]-atomistic_configurations[0][i1][j1][2];
+	  double r2= sqrt(pow(rx,2)+pow(ry,2)+pow(rz,2));
+	  if(r2<.25){
+	    Noverlaps+=1;
+	  }
+	}
+      }
+    }
+  }
+  return Noverlaps;
+}
+
 
 void backbone(int counter, vector<double> & allpositions, vector <double> & orientation, vector <double> & center_position, int replica_number, int protein_number){
   vector< double > bond_distances(Nbackbone+8);
