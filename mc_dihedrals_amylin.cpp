@@ -51,6 +51,7 @@ void print_trajectory(int);
 
 string outfile;
 string trajectoryfile;
+string xyzfile;
 
 int main(int argc, char *argv[]){
   string biasfilename;
@@ -71,7 +72,7 @@ int main(int argc, char *argv[]){
     ab_sheet_distance_filename = argv[8];
     angle_distance_filename = argv[9];
     outfile=argv[10];
-    trajectoryfile=argv[11];
+    xyzfile=argv[11];
     kappa = atof(argv[12]);
     bessel = atof(argv[13]);
   }
@@ -94,6 +95,9 @@ void run_mc(){
   vector <vector <double> > pofs_sheet(Nreplicas, vector <double>(N_proteins));
   vector<double> pos_temp(3);
   vector<double> orientation_temp(3);
+  vector<double> pos_old(3);
+  vector<double> orientation_old(3);
+  double angle_old=0;
   double angle_temp=0;
   double energy_delta=0;
   double alphabeta1new=0;
@@ -149,8 +153,8 @@ void run_mc(){
       }
     }
     }*/
-
-
+  
+  
   for(int k=0; k<positions.size(); k++){
     for(int j=0; j<positions[k].size(); j++){
       
@@ -168,8 +172,10 @@ void run_mc(){
 	  }
 	}
       }
+      
       //cout << r2 << " a\n";
       //cout << positions[k][j][0] << " " << positions[k][j][1] << " " << positions[k][j][2] << "\n";
+      
       orientations[k][j][0]=real_distribution(generator);
       orientations[k][j][1]=real_distribution(generator);
       orientations[k][j][2]=real_distribution(generator);
@@ -181,7 +187,8 @@ void run_mc(){
       ab_betasheet[k][j]=0;
       for(int j1=0; j1<dihedral_angles[k][j].size(); j1++){
 	//dihedral_angles[k][j][j1]=-3.14+real_distribution(generator)*2*3.14;
-	dihedral_angles[k][j][j1]=alphahelix_dihedrals[j1]+3.14/2;
+	//dihedral_angles[k][j][j1]=alphahelix_dihedrals[j1]+3.14/2;
+	dihedral_angles[k][j][j1]=alphahelix_dihedrals[j1];
 	double angle_delta = dihedral_angles[k][j][j1]-alphahelix_dihedrals[j1];
 	ab_alphahelix[k][j] += 0.5+0.5*cos(angle_delta);
 	angle_delta = dihedral_angles[k][j][j1]-betasheet_dihedrals[j1];
@@ -189,10 +196,12 @@ void run_mc(){
       }
       //cout << ab_alphahelix[k][j] << " ab ah \n";
       backbone(0, dihedral_angles[k][j], orientations[k][j], positions[k][j], k, j);
-
+      
       //cout << ab_alphahelix[k][j] << " ab ah \n";
     }
+  
   }
+  print_trajectory(0);
 
   for(int k=0; k<pofs_helix.size(); k++){
     for(int j=0; j<pofs_helix.size(); j++){
@@ -222,6 +231,10 @@ void run_mc(){
 	pos_temp[0] = positions[k][protein_label][0]+(real_distribution(generator)-0.5)*pos_step_size;
 	pos_temp[1] = positions[k][protein_label][1]+(real_distribution(generator)-0.5)*pos_step_size;
 	pos_temp[2] = positions[k][protein_label][2]+(real_distribution(generator)-0.5)*pos_step_size;
+
+	pos_old[0] = positions[k][protein_label][0];
+	pos_old[1] = positions[k][protein_label][1];
+	pos_old[2] = positions[k][protein_label][2];
 	
 	if(real_distribution(generator)<0.2){
 	  angle_temp=angle_temp+3.14;
@@ -251,9 +264,12 @@ void run_mc(){
 	orientation_temp[0]=d1/d0;
 	orientation_temp[1]=d2/d0;
 	orientation_temp[2]=d3/d0;
-
-
 	
+	orientation_old[0]=orientations[k][protein_label][0];
+	orientation_old[1]=orientations[k][protein_label][1];
+	orientation_old[2]=orientations[k][protein_label][2];
+	
+	angle_old=dihedral_angles[k][protein_label][dihedral_label];
 	//pofsnew_ah = pofs_helix[k][j]*exp(kappa*cos(angle_temp-alphahelix_dihedrals[dihedral_label]))/(bessel);
 	//pofsnew_ah /= exp(kappa*cos(dihedral_angles[k][protein_label][dihedral_label]-alphahelix_dihedrals[dihedral_label]))/(bessel);
 	//pofsnew_bs = pofs_sheet[k][j]*exp(kappa*cos(angle_temp-betasheet_dihedrals[dihedral_label]))/(bessel);
@@ -385,12 +401,26 @@ void run_mc(){
 	  orientations[k][protein_label][2]=orientation_temp[2];	  
 	  backbone(0, dihedral_angles[k][protein_label], orientations[k][protein_label], positions[k][protein_label], k, protein_label);	  
 	  
-	  //check_for_overlaps(protein_label);
-	  ab_alphahelix[k][protein_label]=ab_alphahelix_new;
-	  ab_betasheet[k][protein_label]=ab_betasheet_new;
+	  Noverlaps = check_for_overlaps(0);
+	  if(Noverlaps !=0){
+	    energy[k] -= energy_delta;
+	    dihedral_angles[k][protein_label][dihedral_label]=angle_old;
+	    positions[k][protein_label][0]=pos_old[0];
+	    positions[k][protein_label][1]=pos_old[1];
+	    positions[k][protein_label][2]=pos_old[2];
+	    //cout << outofbounds << " accepted\n";
+	    orientations[k][protein_label][0]=orientation_old[0];
+	    orientations[k][protein_label][1]=orientation_old[1];
+	    orientations[k][protein_label][2]=orientation_old[2];	  
+	    backbone(0, dihedral_angles[k][protein_label], orientations[k][protein_label], positions[k][protein_label], k, protein_label);
+	  }
+	  if(Noverlaps==0){
+	    ab_alphahelix[k][protein_label]=ab_alphahelix_new;
+	    ab_betasheet[k][protein_label]=ab_betasheet_new;
 	  
-	  pofs_helix[k][protein_label]=pofsnew_ah;
-	  pofs_sheet[k][protein_label]=pofsnew_bs;
+	    pofs_helix[k][protein_label]=pofsnew_ah;
+	    pofs_sheet[k][protein_label]=pofsnew_bs;
+	  }
 	  //cout << pofs_helix[k][protein_label] << " helix\n";
 	  //cout << pofs_sheet[k][protein_label] << " sheet\n";
 	}
@@ -405,7 +435,9 @@ void run_mc(){
     }
     
     if(i%2==0){
-      backbone(i, dihedral_angles[0][protein_label], orientations[0][protein_label], positions[0][protein_label], 0, protein_label);
+      for(int j=0; j<N_proteins; j++){
+	backbone(i, dihedral_angles[0][j], orientations[0][j], positions[0][j], 0, j);
+      }
       print(i, positions[0], orientations[0], ab_alphahelix[0], ab_betasheet[0]);
       print_trajectory(i);
     }
@@ -438,21 +470,26 @@ void run_mc(){
 
 void print_trajectory(int timestep){
   ofstream backbonefile;
-  string bbstring ("backbone_atoms.xyz");
-  backbonefile.open(bbstring,ios::out);
 
+  backbonefile.open(xyzfile,ios::app);
+  
   int Noverlaps = check_for_overlaps(0);
-  for(int i=0; i<N_proteins; i++){
-    for(int j=0; j<Nbackbone; j++){
-      if( (j-1) % 3 == 0){
-	backbonefile << "N " << 10*atomistic_configurations[0][i][j][0] << " " << 10*atomistic_configurations[0][i][j][1] << " " << 10*atomistic_configurations[0][i][j][2] << "\n";
-      }
-      else{
-	backbonefile << "C " << 10*atomistic_configurations[0][i][j][0] << " " << 10*atomistic_configurations[0][i][j][1] << " " << 10*atomistic_configurations[0][i][j][2] << "\n";
+  //cout << Noverlaps << " no\n";
+  if(Noverlaps==0){
+    //cout << Noverlaps << " no2 printing\n";
+    backbonefile <<N_proteins*Nbackbone << "\n\n";
+    for(int i=0; i<N_proteins; i++){
+      for(int j=0; j<Nbackbone; j++){
+	if( (j-1) % 3 == 0){
+	  backbonefile << "N " << 10*(atomistic_configurations[0][i][j][0]-atomistic_configurations[0][0][8][0]) << " " << 10*(atomistic_configurations[0][i][j][1]-atomistic_configurations[0][0][8][1]) << " " << 10*(atomistic_configurations[0][i][j][2]-atomistic_configurations[0][0][8][2]) << "\n";
+	}
+	else{
+	  backbonefile << "C " << 10*(atomistic_configurations[0][i][j][0]-atomistic_configurations[0][0][8][0]) << " " << 10*(atomistic_configurations[0][i][j][1]-atomistic_configurations[0][0][8][1]) << " " << 10*(atomistic_configurations[0][i][j][2]-atomistic_configurations[0][0][8][2]) << "\n";
+	}
       }
     }
   }
-  backbonefile.close();
+  //backbonefile.close();
 }
 
 
@@ -461,18 +498,20 @@ int check_for_overlaps(int protein_number){
   for(int i=0; i<N_proteins; i++){
     for(int i1=i+1; i1<N_proteins; i1++){
       for(int j=0; j<Nbackbone; j++){
-	for(int j1=j+1; j1<Nbackbone; j1++){
-	  double rx=atomistic_configurations[0][i][j][0]-atomistic_configurations[0][i1][j1][0];
-	  double ry=atomistic_configurations[0][i][j][1]-atomistic_configurations[0][i1][j1][1];
-	  double rz=atomistic_configurations[0][i][j][2]-atomistic_configurations[0][i1][j1][2];
-	  double r2= sqrt(pow(rx,2)+pow(ry,2)+pow(rz,2));
-	  if(r2<.25){
+	for(int j1=0; j1<Nbackbone; j1++){
+	  double rx = atomistic_configurations[0][i][j][0]-atomistic_configurations[0][i1][j1][0];
+	  double ry = atomistic_configurations[0][i][j][1]-atomistic_configurations[0][i1][j1][1];
+	  double rz = atomistic_configurations[0][i][j][2]-atomistic_configurations[0][i1][j1][2];
+	  double r2 = sqrt(pow(rx,2)+pow(ry,2)+pow(rz,2));
+	  //cout << i << " "<< i1 << " "<< r2<< "\n";
+	  if(r2<.2){
 	    Noverlaps+=1;
 	  }
 	}
       }
     }
   }
+  //cout << Noverlaps << "overlaps\n";
   return Noverlaps;
 }
 
@@ -497,9 +536,9 @@ void backbone(int counter, vector<double> & allpositions, vector <double> & orie
   
   bond_angles[0]=2.1957;
   for(int k=0; k<=N_cvs/2+2; k++){
-    bond_angles[3*k]=2.0031;
-    bond_angles[1+3*k]=2.0653;
-    bond_angles[2+3*k]=2.17011;
+    bond_angles[3*k+1]=2.0031;
+    bond_angles[2+3*k]=2.0653;
+    bond_angles[3*k]=2.17011;
   }
   
   int j1=0;
@@ -586,26 +625,32 @@ void backbone(int counter, vector<double> & allpositions, vector <double> & orie
   double sin_theta= sin(theta);   double cos_theta= cos(theta);
   
   mat rotation_matrix(3,3);
-  orientation_vec(0) /= refx;   orientation_vec(1) /= refx;   orientation_vec(2) /= refx;
+  orientation_vec(0) = cross_product(0)/refx;   orientation_vec(1) = cross_product(1)/refx;   orientation_vec(2) = cross_product(2)/refx;
   
+  //cout << refx << " "<< orientation_vec(0) << " "<< orientation_vec(1) << " "<< orientation_vec(2)<< " " << sin_theta<< " " << cos_theta << " hey \n";
+  
+  //cout << sqrt(pow(orientation_vec(0),2) + pow(orientation_vec(1),2) + pow(orientation_vec(2),2) )<< " mag \n";
   rotation_matrix(0,0)= cos_theta + orientation_vec(0)*orientation_vec(0)*(1-cos_theta); rotation_matrix(0,1) = orientation_vec(0)*orientation_vec(1)*(1-cos_theta) - orientation_vec(2)*sin_theta; rotation_matrix(0,2)= orientation_vec(0)*orientation_vec(2)*(1-cos_theta) + orientation_vec(1)*sin_theta;
-  rotation_matrix(1,0) = orientation_vec(0)*orientation_vec(1)*(1-cos_theta) - orientation_vec(2)*sin_theta; rotation_matrix(1,1)=cos_theta + orientation_vec(1)*orientation_vec(1)*(1-cos_theta); rotation_matrix(1,2)= orientation_vec(1)*orientation_vec(2)*(1-cos_theta) + orientation_vec(0)*sin_theta;
-  rotation_matrix(2,0) = orientation_vec(0)*orientation_vec(2)*(1-cos_theta) + orientation_vec(1)*sin_theta; rotation_matrix(2,1) = orientation_vec(1)*orientation_vec(2)*(1-cos_theta) + orientation_vec(0)*sin_theta; rotation_matrix(2,2)= cos_theta + orientation_vec(2)*orientation_vec(2)*(1-cos_theta);
-
+  rotation_matrix(1,0) = orientation_vec(0)*orientation_vec(1)*(1-cos_theta) + orientation_vec(2)*sin_theta; rotation_matrix(1,1)=cos_theta + orientation_vec(1)*orientation_vec(1)*(1-cos_theta); rotation_matrix(1,2)= orientation_vec(1)*orientation_vec(2)*(1-cos_theta) - orientation_vec(0)*sin_theta;
+  rotation_matrix(2,0) = orientation_vec(0)*orientation_vec(2)*(1-cos_theta) - orientation_vec(1)*sin_theta; rotation_matrix(2,1) = orientation_vec(1)*orientation_vec(2)*(1-cos_theta) + orientation_vec(0)*sin_theta; rotation_matrix(2,2)= cos_theta + orientation_vec(2)*orientation_vec(2)*(1-cos_theta);
+  
   vec unrotated_position(3);
   vec rotated_position(3);
+  
   for(int k=0; k<Nbackbone; k++){
     unrotated_position(0)= atomistic_configurations[replica_number][protein_number][k][0]; unrotated_position(1)= atomistic_configurations[replica_number][protein_number][k][1]; unrotated_position(2)= atomistic_configurations[replica_number][protein_number][k][2];
     rotated_position = rotation_matrix*unrotated_position;
+    //cout << sqrt(pow(rotated_position(0),2) + pow(rotated_position(1),2) + pow(rotated_position(2),2) )<< " " <<sqrt(pow(unrotated_position(0),2) + pow(unrotated_position(1),2) + pow(unrotated_position(2),2) )<< "\n";
     atomistic_configurations[replica_number][protein_number][k][0]=rotated_position(0); atomistic_configurations[replica_number][protein_number][k][1]=rotated_position(1); atomistic_configurations[replica_number][protein_number][k][2]=rotated_position(2);
-  }
+    }
   refx = center_position[0] - atomistic_configurations[replica_number][protein_number][8][0]; refy = center_position[1] - atomistic_configurations[replica_number][protein_number][8][1]; refz = center_position[2] - atomistic_configurations[replica_number][protein_number][8][2];
   
-  
+  //cout << refx << " " << refy << " " << refz << "\n";
+  //cout << atomistic_configurations[replica_number][protein_number][2][0] << " " << atomistic_configurations[replica_number][protein_number][2][1] << " " << atomistic_configurations[replica_number][protein_number][2][2] << "a\n";
   for(int k=0; k<Nbackbone; k++){
-    atomistic_configurations[replica_number][protein_number][k][0] + refx; atomistic_configurations[replica_number][protein_number][k][1] + refy; atomistic_configurations[replica_number][protein_number][k][2] + refz;
+    atomistic_configurations[replica_number][protein_number][k][0] += refx; atomistic_configurations[replica_number][protein_number][k][1] += refy; atomistic_configurations[replica_number][protein_number][k][2] += refz;
   }
-  
+  //cout << atomistic_configurations[replica_number][protein_number][2][0] << " " << atomistic_configurations[replica_number][protein_number][2][1] << " " << atomistic_configurations[replica_number][protein_number][2][2] << "b\n";
   /*
   double rx, ry, rz=0;
   rx=backbone[28][0]-backbone[1][0];
@@ -718,7 +763,8 @@ void initialize(string biasfname, string ab_helix_filename, string ab_sheet_file
   angle_distance.setindices();
   
   //cout << "index set\n";
-  Nbackbone=3*N_cvs/2 +5;
+  //Nbackbone=3*N_cvs/2 +5;
+  Nbackbone=21;
   Nreplicas=1;
   atomistic_configurations.resize(Nreplicas);
   
@@ -733,7 +779,7 @@ void initialize(string biasfname, string ab_helix_filename, string ab_sheet_file
     }
   }
 
-  beta[0]=0.40009;
+  beta[0]=0.3400;
   beta[1]=0.3306;
   beta[2]=0.3089;
   beta[3]=0.2887;
@@ -822,9 +868,9 @@ void print(int counter, vector < vector <double> > & allpositions, vector < vect
   double distance=0;
   double angle=0;
   ofstream colvarfile;
-  ofstream trajfile;
+
   colvarfile.open(outfile, ios_base::app);
-  trajfile.open(trajectoryfile, ios_base::app);
+
 
   colvarfile << counter<<" ";
   for(int i=0; i<N_proteins; i++){
@@ -845,19 +891,6 @@ void print(int counter, vector < vector <double> > & allpositions, vector < vect
 
   colvarfile.close();
   
-  trajfile << counter << "\n ";
-  trajfile << "\n";
-  
-  for(int i=0; i<N_proteins; i++){
-    for(int j=0; j<3; j++){
-      trajfile << allpositions[i][j] << " ";
-    }
-
-    for(int j=0; j<3; j++){
-      trajfile << allorientations[i][j] << " ";
-    }
-    trajfile << "\n";
-  }
   //cout << allorientations[0][0]  << " " << allorientations[0][1] << " " << allorientations[0][2] << "\n";
 
 }
